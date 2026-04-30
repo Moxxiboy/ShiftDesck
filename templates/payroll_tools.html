@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set page_title = "Payroll инструменти" %}
+{% set title = "Payroll инструменти" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">💶 Payroll център</h2>
+    <div class="muted">Инструменти за финансов отдел: брутно, нетно, извънреден труд, бонуси и корекции.</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="GET" class="row">
+    <input type="number" name="year" value="{{ year }}" style="max-width:140px;">
+    <input type="number" name="month" min="1" max="12" value="{{ month }}" style="max-width:120px;">
+    <button class="btn" type="submit">Покажи</button>
+    <a class="btn secondary" href="{{ url_for('salaries') }}">Детайлни заплати</a>
+    <a class="btn secondary" href="{{ url_for('bonuses', year=year, month=month) }}">Бонуси</a>
+    <a class="btn secondary" href="{{ url_for('salary_corrections', year=year, month=month) }}">Корекции</a>
+  </form>
+</div>
+
+<div class="grid" style="margin-bottom:18px;">
+  <div class="card"><div class="muted">Активни служители</div><div class="stat">{{ active_employees }}</div></div>
+  <div class="card"><div class="muted">Общо часове</div><div class="stat">{{ "%.2f"|format(total_hours) }}</div></div>
+  <div class="card"><div class="muted">Извънредни часове</div><div class="stat">{{ "%.2f"|format(total_overtime) }}</div></div>
+  <div class="card"><div class="muted">Брутно общо</div><div class="stat">{{ total_gross|money }}</div></div>
+  <div class="card"><div class="muted">Нетно ориентировъчно</div><div class="stat">{{ total_net|money }}</div></div>
+</div>
+
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Служител</th>
+        <th>Часове</th>
+        <th>Извънредни</th>
+        <th>Брутно</th>
+        <th>Нетно*</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><strong>{{ row.name }}</strong><br><span class="muted">{{ row.department }}</span></td>
+        <td>{{ "%.2f"|format(row.hours) }}</td>
+        <td>{{ "%.2f"|format(row.overtime_hours or 0) }}</td>
+        <td>{{ row.salary|money }}</td>
+        <td>{{ (row.salary * 0.78)|money }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Няма данни.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="muted">*Нетното е ориентировъчно. Следваща стъпка: точни осигуровки/данъци по българското законодателство.</p>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% set page_title = "Календар" %}
+{% set title = "Календар" %}
+
+{% block content %}
+
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">🗓️ {{ month_name }} {{ year }}</h2>
+    <div class="muted">Месечен график със смени по дни.</div>
+  </div>
+
+  <div class="row">
+    <a class="btn secondary" href="{{ url_for('schedule', year=prev_year, month=prev_month) }}">← Предходен</a>
+    <a class="btn secondary" href="{{ url_for('schedule') }}">Текущ</a>
+    <a class="btn secondary" href="{{ url_for('schedule', year=next_year, month=next_month) }}">Следващ →</a>
+  </div>
+</div>
+
+{% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}
+<div class="row" style="margin-bottom:18px;">
+  <button class="btn" type="button" onclick="openShiftModal()">+ Добави смяна</button>
+  <form method="POST" action="{{ url_for('generate_schedule') }}">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <button class="btn secondary" type="submit">⚡ Генерирай график</button>
+  </form>
+  <form method="POST" action="{{ url_for('schedule_clear_month') }}" onsubmit="return confirm('Сигурен ли си? Това ще изтрие целия график за {{ month_name }} {{ year }}.')">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <button class="btn danger" type="submit">🗑️ Изтрий месеца</button>
+  </form>
+</div>
+
+<div id="shiftModal" class="modal-backdrop" onclick="closeShiftModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="row space">
+      <h3 style="margin:0;">+ Нова смяна</h3>
+      <button class="btn small secondary" type="button" onclick="hideShiftModal()">Затвори</button>
+    </div>
+
+    <form method="POST" style="margin-top:14px;">
+      <div class="form-grid">
+        <div>
+          <label>Дата</label>
+          <input id="modalWorkDate" type="date" name="work_date" required>
+        </div>
+        <div>
+          <label>Готова смяна</label>
+          <select id="templateSelect" onchange="applyTemplate()">
+            <option value="">Избери готова смяна</option>
+            {% for t in templates %}
+              <option value="{{ t.start_time }}|{{ t.end_time }}">{{ t.name }} · {{ t.start_time }} - {{ t.end_time }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Начало</label>
+          <input id="startTime" type="time" name="start_time" required>
+        </div>
+        <div>
+          <label>Край</label>
+          <input id="endTime" type="time" name="end_time" required>
+        </div>
+        <div class="full">
+          <label>Служители</label>
+          <select name="employee_ids" multiple required size="6">
+            {% for emp in employees %}
+              <option value="{{ emp.id }}">{{ emp.first_name }} {{ emp.last_name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted" style="font-size:13px;margin-top:6px;">На Mac задръж Cmd за повече от един служител.</div>
+        </div>
+        <div class="full">
+          <label>Бележка</label>
+          <input type="text" name="notes" placeholder="По желание">
+      <label class="row" style="margin-top:10px;">
+        <input type="checkbox" name="allow_non_working" value="1" style="width:auto;">
+        Налага се работа в почивен/празничен ден
+      </label>
+      <div class="muted" style="font-size:13px;">Това ще се третира като по-високо заплащане/извънреден труд.</div>
+        </div>
+      </div>
+      <button class="btn" style="margin-top:14px;" type="submit">Запази смяна</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="weekday-row">
+  <div>Пон</div>
+  <div>Вто</div>
+  <div>Сря</div>
+  <div>Чет</div>
+  <div>Пет</div>
+  <div>Съб</div>
+  <div>Нед</div>
+</div>
+
+<div class="month-calendar">
+  {% for d in calendar_cells %}
+    {% if d %}
+      <div class="month-cell {% if holidays.get(d) %}holiday{% endif %}" data-date="{{ d }}">
+        <div class="row space">
+          <div class="month-date" {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}style="cursor:pointer" onclick="openShiftModal('{{ d }}')" title="Добави смяна"{% endif %}>{{ d[8:10] }}</div>
+          <span class="badge">{{ by_day[d]|length }}</span>
+        </div>
+        {% if holidays.get(d) %}<div class="badge" style="margin-bottom:8px;background:rgba(239,68,68,.22);color:#fecaca;">{{ holidays.get(d) }}</div>{% endif %}
+
+        {% for s in by_day[d] %}
+          <div class="shift" draggable="{% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}true{% else %}false{% endif %}" data-id="{{ s.id }}">
+            <strong>{{ s.first_name }} {{ s.last_name }}</strong>
+            <div class="pill">{{ s.start_time }} - {{ s.end_time }}</div>
+            <div class="muted" style="font-size:12px;">{{ s.department or '-' }}</div>
+
+            {% if s.notes %}
+              <div style="font-size:12px;margin-top:6px;">{{ s.notes }}</div>
+            {% endif %}
+
+            {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}
+              <form method="POST" action="{{ url_for('schedule_delete', shift_id=s.id) }}" onsubmit="return confirm('Да изтрия ли смяната?')" style="margin-top:8px;">
+                <button class="btn small danger" type="submit">Изтрий</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="month-cell empty"></div>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+function openShiftModal(dateValue){
+  const modal=document.getElementById('shiftModal');
+  const dateInput=document.getElementById('modalWorkDate');
+  if(dateInput && dateValue) dateInput.value=dateValue;
+  if(modal) modal.classList.add('show');
+}
+function hideShiftModal(){const modal=document.getElementById('shiftModal'); if(modal) modal.classList.remove('show');}
+function closeShiftModal(event){ if(event.target.id==='shiftModal') hideShiftModal(); }
+
+function applyTemplate() {
+  const select = document.getElementById("templateSelect");
+  if (!select || !select.value) return;
+
+  const parts = select.value.split("|");
+  document.getElementById("startTime").value = parts[0];
+  document.getElementById("endTime").value = parts[1];
+}
+
+let draggedShiftId = null;
+
+document.querySelectorAll(".shift[draggable='true']").forEach(item => {
+  item.addEventListener("dragstart", () => {
+    draggedShiftId = item.dataset.id;
+  });
+});
+
+document.querySelectorAll(".month-cell[data-date]").forEach(day => {
+  day.addEventListener("dragover", event => {
+    event.preventDefault();
+  });
+
+  day.addEventListener("drop", async event => {
+    event.preventDefault();
+
+    if (!draggedShiftId) return;
+
+    const workDate = day.dataset.date;
+
+    const response = await fetch(`/api/schedule/${draggedShiftId}/move`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ work_date: workDate })
+    });
+
+    if (response.ok) {
+      window.location.reload();
+    }
+  });
+});
+{% endblock %}

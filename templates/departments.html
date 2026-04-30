@@ -1,0 +1,3 @@
+{% extends 'base.html' %}{% set page_title='Отдели' %}{% block content %}
+<div class="card"><form method="post" class="row"><input name="name" placeholder="Нов отдел" required><button class="btn">Добави</button></form><br><table><tr><th>ID</th><th>Име</th></tr>{% for d in departments %}<tr><td>{{ d.id }}</td><td>{{ d.name }}</td></tr>{% endfor %}</table></div>
+{% endblock %}
