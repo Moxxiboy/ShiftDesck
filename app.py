@@ -2413,7 +2413,7 @@ def report_monthly(employee_id):
         y = height - 24 * mm
         employee = data["employee"]
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(20 * mm, y, "ShiftDeck Monthly Report")
+        c.drawString(20 * mm, y, "ShiftDesk Monthly Report")
         y -= 10 * mm
 
         c.setFont("Helvetica", 11)
@@ -2468,7 +2468,7 @@ def report_monthly(employee_id):
         # Fallback: text file if reportlab is not installed.
         employee = data["employee"]
         content = []
-        content.append("ShiftDeck Monthly Report")
+        content.append("ShiftDesk Monthly Report")
         content.append(f"Employee: {employee['first_name']} {employee['last_name']}")
         content.append(f"Period: {month:02d}.{year}")
         content.append(f"Total hours: {data['total_hours']:.2f}")

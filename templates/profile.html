@@ -35,11 +35,7 @@
 </div>
 
 {% if current_user.employee_id == employee.id %}
-<div class="card" style="margin-bottom:18px;">
-  <h3 style="margin-top:0;">🙋 Искам смяна</h3>
-  <form method="POST" action="{{ url_for('ticket_request_shift') }}">
-    <div class="form-grid">
-      <div><label>Дата</label><input type="date" name="preferred_date" required></div>
+
       <div><label>Предпочитан час</label><input type="text" name="preferred_time" placeholder="Например 08:00-16:00"></div>
       <div class="full"><label>Коментар</label><input type="text" name="description" placeholder="По желание"></div>
     </div>

@@ -100,7 +100,7 @@
 <div class="month-calendar">
   {% for d in calendar_cells %}
     {% if d %}
-      <div class="month-cell {% if holidays.get(d) %}holiday{% endif %}" data-date="{{ d }}">
+      <div class="month-cell {% if holidays.get(d) %}holiday{% endif %}" data-date="{{ d }}" {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}data-open-shift-modal="1"{% endif %}>
         <div class="row space">
           <div class="month-date" {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}style="cursor:pointer" onclick="openShiftModal('{{ d }}')" title="Добави смяна"{% endif %}>{{ d[8:10] }}</div>
           <span class="badge">{{ by_day[d]|length }}</span>
@@ -161,6 +161,12 @@ document.querySelectorAll(".shift[draggable='true']").forEach(item => {
 });
 
 document.querySelectorAll(".month-cell[data-date]").forEach(day => {
+  day.addEventListener("click", event => {
+    if (!day.dataset.openShiftModal) return;
+    if (event.target.closest(".shift, form, button, a, select, input, textarea")) return;
+    openShiftModal(day.dataset.date);
+  });
+
   day.addEventListener("dragover", event => {
     event.preventDefault();
   });
