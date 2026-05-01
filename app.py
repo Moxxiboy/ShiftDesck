@@ -800,7 +800,7 @@ def notify_coworkers_about_absence(conn, employee_id, start_date, end_date, reas
 
 @app.route("/manifest.json")
 def manifest():
-    return send_from_directory(static, "manifest.json")
+    return send_from_directory(app.static_folder, "manifest.json")
 
 
 @app.route("/service-worker.js")
