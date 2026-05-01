@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block guest %}
+<div class="login-wrap"><div class="card login"><div class="brand">Shift<span>Desk</span></div><h2>Вход</h2>{% with messages=get_flashed_messages(with_categories=true) %}{% for c,m in messages %}<div class="flash {{ c }}">{{ m }}</div>{% endfor %}{% endwith %}<form method="post"><label>Потребител</label><input name="username" required><label>Парола</label><input name="password" type="password" required><br><br><button class="btn" style="width:100%">Вход</button></form></div></div>
+<div class="created-by-footer">Created by <strong>ShiftDesk Studio</strong></div>
+{% endblock %}

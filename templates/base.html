@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070b14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="{{ url_for('manifest') }}">
+  <title>{{ title or 'ShiftDesk' }}</title>
+  <style>
+    :root{--bg:#070b14;--panel:#0e1628;--panel2:#121d33;--text:#e8eefc;--muted:#93a4c4;--accent:#7c3aed;--accent2:#06b6d4;--danger:#ef4444;--ok:#22c55e;--line:#22304d}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;background:radial-gradient(circle at top left,#172554,#070b14 42%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+    body.theme-light{--bg:#f6f7fb;--panel:#ffffff;--panel2:#eef2ff;--text:#101827;--muted:#475569;--line:#d9e0ef;background:#f6f7fb;color:var(--text)}
+    a{color:inherit;text-decoration:none}
+    .layout{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}
+    .sidebar{background:rgba(14,22,40,.94);border-right:1px solid var(--line);padding:24px;position:sticky;top:0;height:100vh;overflow:auto}
+    .brand{font-size:24px;font-weight:900;margin-bottom:18px;letter-spacing:-.03em}.brand span{color:var(--accent2)}
+    .user-mini{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:12px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.03)}
+    .avatar{width:52px;height:52px;border-radius:18px;object-fit:cover;border:1px solid var(--line);background:#0b1221}
+    .nav a{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:14px;color:var(--muted);margin:6px 0;font-weight:700}
+    .nav a:hover,.nav a.active{background:linear-gradient(135deg,rgba(124,58,237,.24),rgba(6,182,212,.14));color:white}
+    .nav-count{background:#ef4444;color:white;font-size:12px;border-radius:999px;padding:2px 7px}
+    .main{padding:28px;overflow:auto;min-width:0}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:24px}
+    .topbar h1{margin:0;font-size:32px;letter-spacing:-.04em}
+    .muted{color:var(--muted)}
+    .badge{background:rgba(124,58,237,.22);color:#d8c7ff;padding:8px 12px;border-radius:999px;border:1px solid rgba(124,58,237,.35);display:inline-flex;gap:6px;align-items:center}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+    .card{background:linear-gradient(180deg,rgba(18,29,51,.96),rgba(14,22,40,.96));border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.23);transition:border-color .15s ease}
+    .card:hover{border-color:rgba(124,58,237,.45)}
+    .stat{font-size:32px;font-weight:900}
+    .btn{border:0;border-radius:14px;padding:11px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:800;cursor:pointer;display:inline-block}
+    .btn.secondary{background:#1f2a44}.btn.danger{background:var(--danger)}.btn.small{padding:7px 10px;font-size:12px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.space{justify-content:space-between}
+    input,select,textarea{width:100%;padding:12px 14px;background:#0b1221;border:1px solid var(--line);border-radius:14px;color:var(--text);font-size:16px}
+    label{display:block;margin:10px 0 6px;color:var(--muted)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}
+    table{width:100%;border-collapse:collapse}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-weight:700}.table-wrap{overflow-x:auto}
+    .flash{padding:12px 14px;border-radius:14px;margin-bottom:12px;background:#13213b;border:1px solid var(--line)}
+    .danger{color:#fecaca}.success{color:#bbf7d0}.info{color:#bae6fd}
+    .quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+    .quick-card{display:block;background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(6,182,212,.14));border:1px solid rgba(124,58,237,.35);border-radius:20px;padding:18px}
+    .quick-card strong{display:block;font-size:18px;margin-bottom:6px}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}.tab{padding:10px 14px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.tab.active{background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(6,182,212,.14));color:white}
+    .month-calendar{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:12px}.weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:10px;color:var(--muted);font-size:13px;font-weight:800;text-align:center}
+    .month-cell{min-height:170px;background:linear-gradient(180deg,rgba(18,29,51,.95),rgba(14,22,40,.95));border:1px solid var(--line);border-radius:18px;padding:12px;cursor:pointer}
+    .month-cell.empty{opacity:.35;cursor:default}.month-cell.holiday{border-color:rgba(239,68,68,.55);background:linear-gradient(180deg,rgba(127,29,29,.35),rgba(14,22,40,.95))}
+    .month-date{font-weight:900;margin-bottom:10px}.shift{padding:12px;border-radius:18px;background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(6,182,212,.14));border:1px solid rgba(124,58,237,.35);margin-bottom:10px;cursor:grab}.shift strong{display:block}.pill{font-size:12px;color:#cffafe}
+    .login-wrap{display:grid;place-items:center;min-height:100vh;padding:20px}.login{width:min(430px,100%)}
+    .avatar-wrap{position:relative}.avatar-button{border:0;background:transparent;color:inherit;display:flex;align-items:center;gap:10px;cursor:pointer}
+    .avatar-menu{position:absolute;right:0;top:56px;z-index:200;display:none;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+    .avatar-menu.show{display:block}.avatar-menu a,.avatar-menu button{width:100%;display:block;text-align:left;border:0;background:transparent;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;font:inherit}.avatar-menu a:hover,.avatar-menu button:hover{background:#1f2a44}
+    .switch{position:relative;display:inline-flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;cursor:pointer;color:var(--text)}
+    .switch input{display:none}.slider{width:46px;height:24px;border-radius:999px;background:#334155;position:relative;display:inline-block;flex:none}.slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}.switch input:checked+.slider{background:linear-gradient(135deg,var(--accent),var(--accent2))}.switch input:checked+.slider:before{transform:translateX(22px)}
+    .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:240;align-items:center;justify-content:center;padding:18px}.modal-backdrop.show{display:flex}.modal-card{width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.45)}
+    .bottom-nav{display:none}.toast-notification{position:fixed;right:16px;top:16px;z-index:150;max-width:360px;background:linear-gradient(135deg,rgba(124,58,237,.95),rgba(6,182,212,.9));color:white;border-radius:18px;padding:14px 16px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:none}.toast-notification.show{display:block}.toast-title{font-weight:900;margin-bottom:4px}.toast-x{position:absolute;right:10px;top:8px;border:0;background:rgba(255,255,255,.18);color:white;border-radius:999px;width:26px;height:26px;font-size:18px;cursor:pointer}.toast-actions{margin-top:10px}.toast-actions button{border:0;background:white;color:#1e1b4b;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}.created-by-footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center;opacity:.75}.app-status{font-size:12px;color:var(--muted);padding:8px 12px}.install-button{display:none}
+    body.theme-light .card,body.theme-light .month-cell{background:#fff;color:#0f172a;box-shadow:0 10px 28px rgba(15,23,42,.08)}body.theme-light .sidebar,body.theme-light .bottom-nav{background:rgba(255,255,255,.96)}body.theme-light input,body.theme-light select,body.theme-light textarea{background:#f8fafc;color:#101827;border-color:#cbd5e1}body.theme-light .badge{background:#e0e7ff;color:#1e1b4b;border-color:#c7d2fe}body.theme-light .muted{color:#475569}body.theme-light .btn.secondary{background:#e2e8f0;color:#0f172a}body.theme-light .avatar-menu{background:white;color:#0f172a}body.theme-light .avatar-menu a,body.theme-light .avatar-menu button{color:#0f172a}body.theme-light .avatar-menu a:hover,body.theme-light .avatar-menu button:hover{background:#e2e8f0}body.theme-light table th{color:#334155}body.theme-light table td{color:#0f172a}body.theme-light .month-cell.holiday{background:linear-gradient(180deg,#fee2e2,#ffffff);border-color:#fca5a5}
+    @media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:relative;height:auto;padding:18px}.nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.nav a{margin:0}.grid{grid-template-columns:1fr 1fr}.month-calendar{grid-template-columns:1fr}.weekday-row{display:none}.month-cell{min-height:auto}.form-grid{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column;gap:12px}}
+    @media(max-width:650px){body{padding-bottom:82px}.sidebar{display:none}.main{padding:16px}.grid{grid-template-columns:1fr}.card{padding:16px;border-radius:18px}h1{font-size:26px;margin:0}h2{font-size:21px}table{min-width:680px}.topbar{display:block;margin-bottom:16px}.topbar .muted{font-size:13px}.avatar-wrap{display:none}.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:100;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(14,22,40,.96);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(16px)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted);padding:6px;border-radius:12px}.bottom-nav a strong{font-size:18px;line-height:18px}.mobile-count{position:absolute;margin-left:22px;margin-top:-4px;background:#ef4444;color:white;border-radius:999px;font-size:10px;padding:1px 5px}.modal-card{border-radius:20px;padding:16px}.month-cell{padding:14px}.shift{cursor:default}}
+  
+    .module-badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 7px;background:#ef4444;color:white;border-radius:999px;font-size:12px;font-weight:900;box-shadow:0 0 0 3px rgba(239,68,68,.18)}
+    .nav a .module-badge{margin-left:auto}
+    .mobile-count.module-badge{position:absolute;margin-left:24px;margin-top:-8px;min-width:19px;height:19px;font-size:10px;padding:0 5px}
+    .app-shell-card{border-radius:26px}
+    @media(max-width:650px){
+      body{overscroll-behavior:none}
+      .main{padding-top:calc(14px + env(safe-area-inset-top))}
+      .card{box-shadow:0 10px 34px rgba(0,0,0,.18)}
+      .btn,input,select,textarea{min-height:46px}
+      .quick-card,.card{border-radius:22px}
+    }
+
+    .mobile-topbar{display:none}
+    @media(max-width:650px){
+      .mobile-topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.04)}
+      .mobile-topbar strong{display:block;font-size:18px}
+      .mobile-topbar span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+      .mobile-topbar a{font-size:22px}
+      .topbar{display:none}
+      .grid{gap:12px}
+      .card{padding:14px}
+      .stat{font-size:26px}
+      .bottom-nav{grid-template-columns:repeat(5,1fr)}
+      .bottom-nav a{min-height:54px;justify-content:center}
+      .toast-notification{left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));max-width:none}
+    }
+</style>
+</head>
+<body class="theme-{{ theme or 'dark' }}">
+{% if current_user %}
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Shift<span>Desk</span></div>
+    <div class="user-mini">
+      {% if current_user.photo %}
+        <img class="avatar" src="{{ url_for('static', filename='uploads/' ~ current_user.photo) }}" alt="avatar">
+      {% else %}
+        <div class="avatar" style="display:grid;place-items:center;">👤</div>
+      {% endif %}
+      <div>
+        <strong>{{ current_user.first_name or current_user.username }}</strong>
+        <div class="muted" style="font-size:12px;">{{ current_user.position|position_label if current_user.position else current_user.role }}</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      {% if current_user.role == 'manager' and not current_user.employee_id %}
+        <a href="{{ url_for('dashboard') }}"><span>📊 Dashboard</span></a>
+      {% endif %}
+
+      {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}
+        <a href="{{ url_for('team') }}"><span>👥 Екип</span></a>
+      {% endif %}
+
+      {% if current_user.position != 'finance' %}
+        <a href="{{ url_for('schedule') }}"><span>🗓️ Календар</span><span class="nav-count module-badge" data-module="schedule" {% if notification_counts.schedule <= 0 %}style="display:none"{% endif %}>{{ notification_counts.schedule }}</span></a>
+        <a href="{{ url_for('tickets') }}"><span>🎫 Заявки</span><span class="nav-count module-badge" data-module="tickets" {% if notification_counts.tickets <= 0 %}style="display:none"{% endif %}>{{ notification_counts.tickets }}</span></a>
+      {% endif %}
+
+      {% if current_user.position == 'finance' or current_user.position == 'executive_director' or (current_user.role == 'manager' and not current_user.employee_id) %}
+        <a href="{{ url_for('payroll_tools') }}"><span>💼 Payroll</span><span class="nav-count module-badge" data-module="payroll" {% if notification_counts.payroll <= 0 %}style="display:none"{% endif %}>{{ notification_counts.payroll }}</span></a>
+        <a href="{{ url_for('payroll_reports') }}"><span>📨 Payroll справки</span></a>
+        <a href="{{ url_for('salaries') }}"><span>💶 Заплати</span></a>
+        <a href="{{ url_for('bonuses') }}"><span>🎁 Бонуси</span></a>
+        <a href="{{ url_for('salary_corrections') }}"><span>🧾 Корекции</span></a>
+      {% elif current_user.employee_id %}
+        <a href="{{ url_for('salaries') }}"><span>💶 Моя заплата</span></a>
+      {% endif %}
+
+      {% if current_user.role == 'manager' and not current_user.employee_id %}
+        <a href="{{ url_for('departments') }}"><span>🏢 Отдели</span></a>
+        <a href="{{ url_for('users') }}"><span>🔐 Потребители</span></a>
+        <a href="{{ url_for('permissions_admin') }}"><span>🛡️ Права</span></a>
+        <a href="{{ url_for('database') }}"><span>🗄️ База данни</span></a>
+      {% endif %}
+
+      <a href="{{ url_for('help_page') }}"><span>📘 Помощ</span></a>
+      <a href="{{ url_for('feedback_reports') }}"><span>🛠️ Reports</span></a>
+
+      {% if current_user.employee_id %}
+        <a href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}"><span>👤 Моят профил</span></a>
+      {% endif %}
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="mobile-topbar">
+      <div>
+        <strong>ShiftDesk</strong>
+        <span>{{ current_user.first_name or current_user.username }}</span>
+      </div>
+      <a href="{{ url_for('settings') }}">⚙️</a>
+    </div>
+    <div class="topbar">
+      <div>
+        <h1>{{ page_title or 'Dashboard' }}</h1>
+        <div class="muted">Професионална система за екипи, графици, заявки и заплати</div>
+      </div>
+
+      <div class="avatar-wrap">
+        <button class="avatar-button" type="button" onclick="toggleAvatarMenu()">
+          {% if current_user.photo %}
+            <img class="avatar" src="{{ url_for('static', filename='uploads/' ~ current_user.photo) }}" alt="avatar">
+          {% else %}
+            <span class="avatar" style="display:grid;place-items:center;">👤</span>
+          {% endif %}
+          <span class="badge">{{ current_user.username }}</span>
+        </button>
+
+        <div id="avatarMenu" class="avatar-menu">
+          {% if current_user.employee_id %}
+            <a href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}">👤 Моят профил</a>
+          {% endif %}
+          <a href="{{ url_for('settings') }}">⚙️ Настройки</a>
+          <a href="{{ url_for('help_page') }}">📘 Помощ</a>
+          <a href="{{ url_for('feedback_reports') }}">🛠️ Reports</a>
+          <form method="POST" action="{{ url_for('set_theme') }}">
+            <input type="hidden" name="theme" value="{% if theme == 'dark' %}light{% else %}dark{% endif %}">
+            <button type="submit">{% if theme == 'dark' %}☀️ Светъл режим{% else %}🌙 Тъмен режим{% endif %}</button>
+          </form>
+          <label class="switch">
+            <input id="soundSwitch" type="checkbox" onchange="toggleSoundSwitch(this)">
+            <span class="slider"></span>
+            <span>Звук</span>
+          </label>
+          <a href="{{ url_for('logout') }}" class="danger">🚪 Изход</a>
+        </div>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category,message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+    <div class="created-by-footer">Created by <strong>ShiftDesk Studio</strong></div>
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  {% if current_user.position == 'finance' %}
+    <a href="{{ url_for('payroll_tools') }}"><strong>💼</strong><span class="mobile-count module-badge" data-module="payroll" {% if notification_counts.payroll <= 0 %}style="display:none"{% endif %}>{{ notification_counts.payroll }}</span><span>Payroll</span></a>
+    <a href="{{ url_for('payroll_reports') }}"><strong>📨</strong><span>Справки</span></a>
+    <a href="{{ url_for('salaries') }}"><strong>💶</strong><span>Заплати</span></a>
+    <a href="{{ url_for('bonuses') }}"><strong>🎁</strong><span>Бонуси</span></a>
+    <a href="{{ url_for('salary_corrections') }}"><strong>🧾</strong><span>Корекции</span></a>
+    <a href="{{ url_for('feedback_reports') }}"><strong>🛠️</strong><span>Reports</span></a>
+  {% elif current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}
+    <a href="{{ url_for('dashboard') }}"><strong>📊</strong><span>Начало</span></a>
+    <a href="{{ url_for('team') }}"><strong>👥</strong><span>Екип</span></a>
+    <a href="{{ url_for('schedule') }}"><strong>🗓️</strong><span class="mobile-count module-badge" data-module="schedule" {% if notification_counts.schedule <= 0 %}style="display:none"{% endif %}>{{ notification_counts.schedule }}</span><span>График</span></a>
+    <a href="{{ url_for('tickets') }}"><strong>🎫</strong><span class="mobile-count module-badge" data-module="tickets" {% if notification_counts.tickets <= 0 %}style="display:none"{% endif %}>{{ notification_counts.tickets }}</span><span>Заявки</span></a>
+    <a href="{{ url_for('settings') }}"><strong>⚙️</strong><span>Настройки</span></a>
+  {% else %}
+    {% if current_user.employee_id %}
+      <a href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}"><strong>👤</strong><span>Профил</span></a>
+    {% endif %}
+    <a href="{{ url_for('schedule') }}"><strong>🗓️</strong><span class="mobile-count module-badge" data-module="schedule" {% if notification_counts.schedule <= 0 %}style="display:none"{% endif %}>{{ notification_counts.schedule }}</span><span>График</span></a>
+    <a href="{{ url_for('tickets') }}"><strong>🎫</strong><span class="mobile-count module-badge" data-module="tickets" {% if notification_counts.tickets <= 0 %}style="display:none"{% endif %}>{{ notification_counts.tickets }}</span><span>Заявки</span></a>
+    <a href="{{ url_for('salaries') }}"><strong>💶</strong><span>Заплата</span></a>
+    <a href="{{ url_for('settings') }}"><strong>⚙️</strong><span>Настройки</span></a>
+  {% endif %}
+</nav>
+
+{% if latest_notification %}
+<div id="latestNotificationToast" class="toast-notification" data-id="{{ latest_notification.id }}" data-link="{{ latest_notification.link or '' }}">
+  <button class="toast-x" type="button" onclick="closeLatestNotification(event)">×</button>
+  <div class="toast-title">🔔 {{ latest_notification.title }}</div>
+  <div>{{ latest_notification.message }}</div>
+  <div class="toast-actions">
+    {% if latest_notification.link %}
+      <button type="button" onclick="openLatestNotification(event)">Отвори</button>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<audio id="notificationSound" preload="auto">
+  <source src="{{ url_for('static', filename='notification.wav') }}" type="audio/wav">
+</audio>
+{% else %}
+  {% block guest %}{% endblock %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+}
+
+let soundEnabled = localStorage.getItem("shiftdesk_sound_enabled") === "1";
+let lastUnreadCount = Number(localStorage.getItem("shiftdesk_last_unread") || "{{ unread_notifications or 0 }}");
+
+function setSoundButton() {
+  const sw = document.getElementById("soundSwitch");
+  if (sw) sw.checked = soundEnabled;
+}
+
+function toggleSoundSwitch(input){
+  soundEnabled = !!input.checked;
+  localStorage.setItem("shiftdesk_sound_enabled", soundEnabled ? "1" : "0");
+  if(soundEnabled){ enableNotificationSound(); }
+}
+
+async function enableNotificationSound() {
+  soundEnabled = true;
+  localStorage.setItem("shiftdesk_sound_enabled", "1");
+  setSoundButton();
+  const audio = document.getElementById("notificationSound");
+  if (audio) {
+    try { audio.currentTime = 0; await audio.play(); } catch (e) {}
+  }
+  if ("Notification" in window && Notification.permission === "default") {
+    try { await Notification.requestPermission(); } catch (e) {}
+  }
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+}
+
+async function playNotifyFeedback() {
+  if (!soundEnabled) return;
+  const audio = document.getElementById("notificationSound");
+  if (audio) {
+    try { audio.currentTime = 0; await audio.play(); } catch (e) {}
+  }
+  if (navigator.vibrate) navigator.vibrate([160, 60, 160]);
+}
+
+function updateModuleBadges(counts){
+  document.querySelectorAll(".module-badge[data-module]").forEach(el=>{
+    const key = el.dataset.module;
+    const count = Number((counts && counts[key]) || 0);
+    el.textContent = String(count);
+    el.style.display = count > 0 ? "inline-grid" : "none";
+  });
+}
+
+async function pollUnreadNotifications() {
+  {% if current_user %}
+  try {
+    const res = await fetch("{{ url_for('notifications_module_counts_api') }}", { cache: "no-store" });
+    const data = await res.json();
+    if (data.ok) {
+      const count = Number(data.total || 0);
+      updateModuleBadges(data.counts || {});
+      if (count > lastUnreadCount) playNotifyFeedback();
+      lastUnreadCount = count;
+      localStorage.setItem("shiftdesk_last_unread", String(count));
+    }
+  } catch (e) {}
+  {% endif %}
+}
+
+function showLatestNotificationToast(){
+  const toast=document.getElementById("latestNotificationToast");
+  if(!toast)return;
+  toast.classList.add("show");
+  playNotifyFeedback();
+}
+
+async function markNotificationRead(id){
+  if(!id) return;
+  try{ await fetch(`/api/notifications/${id}/read`, {method:"POST"}); }catch(e){}
+}
+
+function closeLatestNotification(event){
+  if(event) event.stopPropagation();
+  const toast=document.getElementById("latestNotificationToast");
+  if(!toast) return;
+  // X only closes the popup. It does NOT mark it as read.
+  toast.classList.remove("show");
+}
+
+async function openLatestNotification(event){
+  if(event) event.stopPropagation();
+  const toast=document.getElementById("latestNotificationToast");
+  if(!toast) return;
+  const link=toast.dataset.link;
+  await markNotificationRead(toast.dataset.id);
+  toast.classList.remove("show");
+  await pollUnreadNotifications();
+  if(link) window.location.href=link;
+}
+
+setSoundButton();
+showLatestNotificationToast();
+setInterval(pollUnreadNotifications, 15000);
+
+function toggleAvatarMenu(){
+  const menu = document.getElementById("avatarMenu");
+  if(menu) menu.classList.toggle("show");
+}
+document.addEventListener("click", function(e){
+  const wrap = document.querySelector(".avatar-wrap");
+  if(wrap && !wrap.contains(e.target)){
+    const menu = document.getElementById("avatarMenu");
+    if(menu) menu.classList.remove("show");
+  }
+});
+
+let deferredInstallPrompt = null;
+function setAppStatus(message){const el=document.getElementById("appStatus"); if(el) el.textContent=message||"";}
+window.addEventListener("beforeinstallprompt", e=>{
+  e.preventDefault(); deferredInstallPrompt=e;
+  const btn=document.getElementById("installAppBtn");
+  if(btn) btn.style.display="block";
+  setAppStatus("Можеш да инсталираш приложението от бутона.");
+});
+async function installApp(){
+  if(!deferredInstallPrompt){
+    setAppStatus("На iPhone: Share → Add to Home Screen. Ако вече е инсталирано, бутонът няма да се показва.");
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt=null;
+  const btn=document.getElementById("installAppBtn");
+  if(btn) btn.style.display="none";
+}
+function urlBase64ToUint8Array(base64String){
+  const padding="=".repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=window.atob(base64);
+  const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;++i) out[i]=raw.charCodeAt(i);
+  return out;
+}
+async function enablePushNotifications(){
+  try{
+    setAppStatus("Проверявам push поддръжката...");
+
+    if (!("serviceWorker" in navigator)){
+      setAppStatus("Service Worker не се поддържа в този браузър.");
+      return;
+    }
+
+    if (!("PushManager" in window)){
+      setAppStatus("Този браузър не поддържа Web Push. На iPhone отвори от Home Screen и Safari/iOS 16.4+.");
+      return;
+    }
+
+    if (!window.isSecureContext){
+      setAppStatus("Push изисква HTTPS. Ползвай Render линка, не локален IP.");
+      return;
+    }
+
+    const keyData=await (await fetch("{{ url_for('push_public_key') }}",{cache:"no-store"})).json();
+    if(!keyData.configured || !keyData.publicKey){
+      setAppStatus("Push не е настроен: липсват VAPID ключове в Render Environment.");
+      return;
+    }
+
+    const permission=await Notification.requestPermission();
+    if(permission!=="granted"){
+      setAppStatus("Push известията не са разрешени от телефона/браузъра.");
+      return;
+    }
+
+    const registration=await navigator.serviceWorker.ready;
+    let sub = await registration.pushManager.getSubscription();
+
+    if(!sub){
+      sub=await registration.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(keyData.publicKey)
+      });
+    }
+
+    const result=await (await fetch("{{ url_for('push_subscribe') }}",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(sub)
+    })).json();
+
+    if(!result.ok){
+      setAppStatus("Грешка при записване на push subscription: " + (result.error || ""));
+      return;
+    }
+
+    const status=await (await fetch("{{ url_for('push_status') }}",{cache:"no-store"})).json();
+    setAppStatus(`Push е включен. Записани устройства: ${status.subscription_count}.`);
+
+  }catch(e){
+    setAppStatus("Push грешка: " + e.message);
+  }
+}
+async function sendTestPush(){
+  try{
+    const result=await (await fetch("{{ url_for('push_test') }}",{method:"POST"})).json();
+    if(!result.ok){
+      setAppStatus("Тестът не мина: " + (result.error || ""));
+      return;
+    }
+    setAppStatus(result.sent ? "Push тестът е изпратен към устройството." : "Тестът създаде in-app известие, но няма активен push subscription.");
+  }catch(e){setAppStatus("Грешка при тест push: " + e.message);}
+}
+
+{% block scripts %}{% endblock %}
+</script>
+</body>
+</html>

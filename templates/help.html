@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% set page_title = "Помощ" %}
+{% set title = "Помощ" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">📘 Помощ и инструкции</h2>
+    <div class="muted">Кратко ръководство как се работи със системата.</div>
+  </div>
+  <a class="btn secondary" href="{{ url_for('feedback_reports') }}">🛠️ Докладвай проблем</a>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+
+
+<div class="card" style="margin-top:18px;">
+  <h3>🚀 Какво остава за тестова версия?</h3>
+  <ul>
+    <li>Да се създадат реални роли за тестови потребители.</li>
+    <li>Да се провери йерархията: работник → мениджър екип → директор.</li>
+    <li>Да се тества от телефон като PWA.</li>
+    <li>Да се качи безплатно на Render/Railway за външен тест.</li>
+  </ul>
+</div>
+{% endblock %}
