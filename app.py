@@ -3606,3 +3606,11 @@ def money_filter(value):
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5050, debug=True, use_reloader=False)
+
+
+@app.route("/api/push-status")
+def push_status():
+    return {
+        "ok": True,
+        "message": "push status works"
+    }
