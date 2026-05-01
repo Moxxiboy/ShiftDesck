@@ -835,6 +835,7 @@ def manifest():
 def service_worker():
     return send_from_directory(app.static_folder, "service-worker.js")
 
+
 # ---------------- SETTINGS ----------------
 
 @app.route("/settings", methods=["GET", "POST"])
@@ -2528,11 +2529,19 @@ def push_test():
         url_for("dashboard"),
         conn
     )
-    # Also keep in-app notification history.
-    notify_user(session["user_id"], "Тестово push известие", "Изпратен е тест към устройството.", url_for("dashboard"), conn)
+
+    notify_user(
+        session["user_id"],
+        "Тестово push известие",
+        "Изпратен е тест към устройството.",
+        url_for("dashboard"),
+        conn
+    )
+
     conn.commit()
     conn.close()
     return jsonify({"ok": True, "sent": bool(sent)})
+
 
 
 def json_dumps_safe(data):
