@@ -3609,8 +3609,18 @@ if __name__ == "__main__":
 
 
 @app.route("/api/push-status")
+@login_required
 def push_status():
-    return {
+    conn = get_db()
+    sub_count = conn.execute(
+        "SELECT COUNT(*) as c FROM push_subscriptions WHERE user_id = ?",
+        (session["user_id"],)
+    ).fetchone()["c"]
+    conn.close()
+
+    return jsonify({
         "ok": True,
-        "message": "push status works"
-    }
+        "https": request.is_secure,
+        "vapid_configured": bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY),
+        "subscription_count": sub_count
+    })
