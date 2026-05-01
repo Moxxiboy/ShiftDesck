@@ -6,15 +6,79 @@
 
 <div class="row space" style="margin-bottom:18px;">
   <div>
-    <h2 style="margin:0;">🗓️ {{ month_name }} {{ year }}</h2>
-    <div class="muted">Месечен график със смени по дни.</div>
+    <h2 style="margin:0;">🗓️ {% if view == 'week' %}Седмица {{ display_start }} → {{ display_end }}{% else %}{{ month_name }} {{ year }}{% endif %}</h2>
+    <div class="muted">{% if view == 'week' %}Седмичен график с филтри.{% else %}Месечен график със смени по дни.{% endif %}</div>
   </div>
 
   <div class="row">
-    <a class="btn secondary" href="{{ url_for('schedule', year=prev_year, month=prev_month) }}">← Предходен</a>
-    <a class="btn secondary" href="{{ url_for('schedule') }}">Текущ</a>
-    <a class="btn secondary" href="{{ url_for('schedule', year=next_year, month=next_month) }}">Следващ →</a>
+    {% if view == 'week' %}
+      <a class="btn secondary" href="{{ url_for('schedule', view='week', week_start=prev_week_start, scope=scope, employee_id=selected_employee_id, department_id=selected_department_id) }}">← Предходна седмица</a>
+      <a class="btn secondary" href="{{ url_for('schedule', view='week') }}">Текуща седмица</a>
+      <a class="btn secondary" href="{{ url_for('schedule', view='week', week_start=next_week_start, scope=scope, employee_id=selected_employee_id, department_id=selected_department_id) }}">Следваща седмица →</a>
+    {% else %}
+      <a class="btn secondary" href="{{ url_for('schedule', year=prev_year, month=prev_month, scope=scope, employee_id=selected_employee_id, department_id=selected_department_id) }}">← Предходен</a>
+      <a class="btn secondary" href="{{ url_for('schedule') }}">Текущ</a>
+      <a class="btn secondary" href="{{ url_for('schedule', year=next_year, month=next_month, scope=scope, employee_id=selected_employee_id, department_id=selected_department_id) }}">Следващ →</a>
+    {% endif %}
   </div>
+</div>
+
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="GET">
+    <div class="form-grid">
+      <div>
+        <label>Период</label>
+        <select name="view">
+          <option value="month" {% if view == 'month' %}selected{% endif %}>Месец</option>
+          <option value="week" {% if view == 'week' %}selected{% endif %}>Седмица</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Изглед</label>
+        <select name="scope">
+          <option value="allowed" {% if scope == 'allowed' %}selected{% endif %}>Всички позволени</option>
+          {% if current_user.employee_id %}
+            <option value="me" {% if scope == 'me' %}selected{% endif %}>Само аз</option>
+          {% endif %}
+          {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}
+            <option value="team" {% if scope == 'team' %}selected{% endif %}>Моят екип</option>
+          {% endif %}
+        </select>
+      </div>
+
+      <div>
+        <label>Служител</label>
+        <select name="employee_id">
+          <option value="">Всички</option>
+          {% for emp in filter_employees %}
+            <option value="{{ emp.id }}" {% if selected_employee_id|string == emp.id|string %}selected{% endif %}>
+              {{ emp.first_name }} {{ emp.last_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label>Отдел</label>
+        <select name="department_id">
+          <option value="">Всички отдели</option>
+          {% for d in departments %}
+            <option value="{{ d.id }}" {% if selected_department_id|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:end;gap:10px;">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        {% if view == 'week' %}<input type="hidden" name="week_start" value="{{ week_start }}">{% endif %}
+        <button class="btn" type="submit">Филтрирай</button>
+        <a class="btn secondary" href="{{ url_for('schedule', year=year, month=month) }}">Изчисти</a>
+      </div>
+    </div>
+  </form>
 </div>
 
 {% if current_user.position in ['team_manager','deputy_director','operations_director','executive_director'] or (current_user.role == 'manager' and not current_user.employee_id) %}
@@ -25,6 +89,15 @@
     <input type="hidden" name="month" value="{{ month }}">
     <button class="btn secondary" type="submit">⚡ Генерирай график</button>
   </form>
+  {% if can_send_payroll_report %}
+  <form method="POST" action="{{ url_for('send_payroll_report') }}" onsubmit="return confirm('Да изпратя справка за {{ month_name }} {{ year }} към финансов отдел?')">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <input type="hidden" name="notes" value="Справка от календар">
+    <button class="btn secondary" type="submit">📨 Справка към финанси</button>
+  </form>
+  {% endif %}
+
   <form method="POST" action="{{ url_for('schedule_clear_month') }}" onsubmit="return confirm('Сигурен ли си? Това ще изтрие целия график за {{ month_name }} {{ year }}.')">
     <input type="hidden" name="year" value="{{ year }}">
     <input type="hidden" name="month" value="{{ month }}">
@@ -69,6 +142,9 @@
               <option value="{{ emp.id }}">{{ emp.first_name }} {{ emp.last_name }}</option>
             {% endfor %}
           </select>
+          {% if employees|length == 0 %}
+            <div class="muted" style="font-size:13px;margin-top:6px;">Нямате подчинени за добавяне на смени.</div>
+          {% endif %}
           <div class="muted" style="font-size:13px;margin-top:6px;">На Mac задръж Cmd за повече от един служител.</div>
         </div>
         <div class="full">

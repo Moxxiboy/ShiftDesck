@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import date, datetime, timedelta
 import calendar
 import random
+import json
 import os
 import hashlib
 import hmac
@@ -74,8 +75,10 @@ def get_db():
 def add_column_if_missing(cur, table, column, definition):
     try:
         cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-    except sqlite3.OperationalError:
-        pass
+    except sqlite3.OperationalError as e:
+        # Ignore only existing-column migrations. Re-raise other DB problems.
+        if "duplicate column name" not in str(e).lower():
+            raise
 
 
 def init_db():
@@ -212,6 +215,24 @@ def init_db():
     """)
 
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_permissions (
+            user_id INTEGER PRIMARY KEY,
+            can_view_calendar INTEGER NOT NULL DEFAULT 1,
+            can_manage_schedule INTEGER NOT NULL DEFAULT 0,
+            can_view_team INTEGER NOT NULL DEFAULT 0,
+            can_process_tickets INTEGER NOT NULL DEFAULT 0,
+            can_view_payroll INTEGER NOT NULL DEFAULT 0,
+            can_edit_payroll INTEGER NOT NULL DEFAULT 0,
+            can_view_payroll_reports INTEGER NOT NULL DEFAULT 0,
+            can_manage_users INTEGER NOT NULL DEFAULT 0,
+            can_view_reports INTEGER NOT NULL DEFAULT 0,
+            scope TEXT NOT NULL DEFAULT 'self',
+            updated_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )
+    """)
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS feedback_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -228,6 +249,25 @@ def init_db():
             updated_at TEXT NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id),
             FOREIGN KEY(employee_id) REFERENCES employees(id)
+        )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payroll_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manager_user_id INTEGER NOT NULL,
+            manager_employee_id INTEGER,
+            year INTEGER NOT NULL,
+            month INTEGER NOT NULL,
+            employee_ids TEXT NOT NULL,
+            total_hours REAL NOT NULL DEFAULT 0,
+            overtime_hours REAL NOT NULL DEFAULT 0,
+            holiday_hours REAL NOT NULL DEFAULT 0,
+            notes TEXT,
+            status TEXT NOT NULL DEFAULT 'sent',
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(manager_user_id) REFERENCES users(id),
+            FOREIGN KEY(manager_employee_id) REFERENCES employees(id)
         )
     """)
 
@@ -349,6 +389,7 @@ def unread_notifications_count():
 @app.context_processor
 def inject_globals():
     latest_notification = None
+    notification_counts = {"tickets": 0, "payroll": 0, "schedule": 0, "reports": 0, "general": 0}
     if "user_id" in session:
         try:
             conn = get_db()
@@ -358,17 +399,21 @@ def inject_globals():
                 ORDER BY created_at DESC
                 LIMIT 1
             """, (session["user_id"],)).fetchone()
+            notification_counts = notification_module_counts(session["user_id"], conn)
             conn.close()
         except Exception:
             latest_notification = None
     return {
         "current_user": current_user(),
         "unread_notifications": unread_notifications_count(),
+        "notification_counts": notification_counts,
         "latest_notification": latest_notification,
         "theme": session.get("theme", "dark"),
         "position_labels": POSITION_LABELS if "POSITION_LABELS" in globals() else {},
         "can_edit_salary": user_can_edit_salary(current_user()),
-        "user_can_process_ticket": user_can_process_ticket
+        "user_can_process_ticket": user_can_process_ticket,
+        "permission_labels": PERMISSION_LABELS,
+        "scope_labels": SCOPE_LABELS
     }
 
 
@@ -437,7 +482,7 @@ def log_employee(employee_id, action, details="", conn=None):
 
 def absolute_link(link):
     if not link:
-        return url_for("notifications", _external=True)
+        return url_for("dashboard", _external=True)
     if str(link).startswith("http://") or str(link).startswith("https://"):
         return link
     return request.host_url.rstrip("/") + str(link)
@@ -472,6 +517,86 @@ def send_push_to_user(user_id, title, message, link=None, conn=None):
         conn.commit()
         conn.close()
     return ok
+
+
+
+def notification_module_from_link(link, title="", message=""):
+    text = f"{link or ''} {title or ''} {message or ''}".lower()
+
+    if "ticket" in text or "tickets" in text or "заяв" in text:
+        return "tickets"
+
+    if "payroll" in text or "salary" in text or "salar" in text or "заплат" in text or "бонус" in text or "финанс" in text:
+        return "payroll"
+
+    if "schedule" in text or "calendar" in text or "смяна" in text or "график" in text or "календар" in text:
+        return "schedule"
+
+    if "feedback" in text or "report" in text or "бъг" in text:
+        return "reports"
+
+    return "general"
+
+
+def notification_module_counts(user_id, conn):
+    rows = conn.execute("""
+        SELECT link, title, message
+        FROM notifications
+        WHERE user_id = ? AND is_read = 0
+    """, (user_id,)).fetchall()
+
+    counts = {"tickets": 0, "payroll": 0, "schedule": 0, "reports": 0, "general": 0}
+
+    for row in rows:
+        module = notification_module_from_link(row["link"], row["title"], row["message"])
+        counts[module] = counts.get(module, 0) + 1
+
+    return counts
+
+
+def notification_link_for_module(module):
+    if module == "tickets":
+        return url_for("tickets")
+    if module == "payroll":
+        return url_for("payroll_tools")
+    if module == "schedule":
+        return url_for("schedule")
+    if module == "reports":
+        return url_for("feedback_reports")
+    return url_for("dashboard")
+
+
+
+def mark_ticket_notifications_processed(ticket_id, employee_id, assigned_to, conn):
+    """Mark pending ticket/request notifications as read after the ticket is processed."""
+    candidate_user_ids = set()
+
+    requester = user_id_for_employee(employee_id, conn)
+    if requester:
+        candidate_user_ids.add(requester)
+
+    if assigned_to:
+        candidate_user_ids.add(assigned_to)
+
+    admins = conn.execute("SELECT id FROM users WHERE role = 'manager' AND employee_id IS NULL").fetchall()
+    for admin in admins:
+        candidate_user_ids.add(admin["id"])
+
+    for uid in candidate_user_ids:
+        conn.execute("""
+            UPDATE notifications
+            SET is_read = 1
+            WHERE user_id = ?
+              AND is_read = 0
+              AND (
+                    COALESCE(link, '') LIKE '%tickets%'
+                 OR title LIKE '%заяв%'
+                 OR title LIKE '%тикет%'
+                 OR message LIKE '%заяв%'
+                 OR message LIKE '%тикет%'
+              )
+        """, (uid,))
+
 
 
 def notify_user(user_id, title, message, link=None, conn=None):
@@ -559,6 +684,35 @@ def get_period_from_request():
     return start, end
 
 
+
+# Approximate Bulgarian payroll calculation for employee born after 1959.
+# Uses employee-side social contributions 13.78% and 10% income tax after employee contributions.
+# Employer cost is approximate 18.92% on gross. These constants should be configurable later.
+BG_EMPLOYEE_SOCIAL_RATE = 0.1378
+BG_INCOME_TAX_RATE = 0.10
+BG_EMPLOYER_SOCIAL_RATE = 0.1892
+
+
+def bulgarian_payroll_breakdown(gross):
+    gross = float(gross or 0)
+    employee_social = round(gross * BG_EMPLOYEE_SOCIAL_RATE, 2)
+    taxable_income = max(0, gross - employee_social)
+    income_tax = round(taxable_income * BG_INCOME_TAX_RATE, 2)
+    net = round(gross - employee_social - income_tax, 2)
+    employer_social = round(gross * BG_EMPLOYER_SOCIAL_RATE, 2)
+    employer_total = round(gross + employer_social, 2)
+
+    return {
+        "gross": round(gross, 2),
+        "employee_social": employee_social,
+        "taxable_income": round(taxable_income, 2),
+        "income_tax": income_tax,
+        "net": net,
+        "employer_social": employer_social,
+        "employer_total": employer_total
+    }
+
+
 def salary_rows(conn, start, end, employee_id=None):
     params = [start, end]
     extra = ""
@@ -591,7 +745,20 @@ def salary_rows(conn, start, end, employee_id=None):
         grouped[eid]["overtime_hours"] += overtime
         grouped[eid]["salary"] += normal * row["hourly_rate"] + overtime * overtime_rate
         grouped[eid]["shifts"] += 1
-    return list(grouped.values())
+    result = []
+    for item in grouped.values():
+        item["salary"] = round(item["salary"], 2)
+        payroll = bulgarian_payroll_breakdown(item["salary"])
+        item.update({
+            "gross": payroll["gross"],
+            "employee_social": payroll["employee_social"],
+            "income_tax": payroll["income_tax"],
+            "net": payroll["net"],
+            "employer_social": payroll["employer_social"],
+            "employer_total": payroll["employer_total"]
+        })
+        result.append(item)
+    return result
 
 BULGARIA_HOLIDAYS_2026 = {
     "2026-01-01":"Нова година","2026-01-02":"Почивен ден / евро","2026-03-03":"Ден на Освобождението",
@@ -718,9 +885,6 @@ BULGARIA_HOLIDAYS_2026 = {
 def get_holiday_name(day_iso):
     return BULGARIA_HOLIDAYS_2026.get(day_iso)
 
-def is_weekend(day_iso):
-    return datetime.strptime(day_iso, "%Y-%m-%d").date().weekday() >= 5
-
 def is_non_working_day(day_iso):
     return is_weekend(day_iso) or bool(get_holiday_name(day_iso))
 
@@ -738,6 +902,146 @@ POSITION_LABELS = {
 
 def position_label(position):
     return POSITION_LABELS.get(position or "worker", position or "Работник")
+
+
+PERMISSION_FIELDS = [
+    "can_view_calendar",
+    "can_manage_schedule",
+    "can_view_team",
+    "can_process_tickets",
+    "can_view_payroll",
+    "can_edit_payroll",
+    "can_view_payroll_reports",
+    "can_manage_users",
+    "can_view_reports"
+]
+
+PERMISSION_LABELS = {
+    "can_view_calendar": "Вижда календар",
+    "can_manage_schedule": "Управлява графици",
+    "can_view_team": "Вижда екип",
+    "can_process_tickets": "Обработва заявки",
+    "can_view_payroll": "Вижда заплати",
+    "can_edit_payroll": "Прави корекции по заплати",
+    "can_view_payroll_reports": "Вижда payroll справки",
+    "can_manage_users": "Управлява потребители",
+    "can_view_reports": "Вижда reports"
+}
+
+SCOPE_LABELS = {
+    "self": "Само себе си",
+    "subordinates": "Само подчинени",
+    "team_and_self": "Себе си + подчинени",
+    "all": "Цялата фирма"
+}
+
+
+def default_permissions_for_user(user):
+    position = user["position"] if user and "position" in user.keys() else "worker"
+    is_root = bool(user and user["role"] == "manager" and not user["employee_id"])
+
+    perms = {field: 0 for field in PERMISSION_FIELDS}
+    perms["can_view_calendar"] = 1
+    perms["scope"] = "self"
+
+    if is_root:
+        for field in PERMISSION_FIELDS:
+            perms[field] = 1
+        perms["scope"] = "all"
+        return perms
+
+    if position == "worker":
+        perms["scope"] = "self"
+
+    elif position == "team_manager":
+        perms.update({
+            "can_manage_schedule": 1,
+            "can_view_team": 1,
+            "can_process_tickets": 1
+        })
+        perms["scope"] = "team_and_self"
+
+    elif position in ["deputy_director", "operations_director"]:
+        perms.update({
+            "can_manage_schedule": 1,
+            "can_view_team": 1,
+            "can_process_tickets": 1,
+            "can_view_reports": 1
+        })
+        perms["scope"] = "all"
+
+    elif position == "executive_director":
+        perms.update({
+            "can_view_team": 1,
+            "can_process_tickets": 1,
+            "can_view_payroll": 1,
+            "can_edit_payroll": 1,
+            "can_view_payroll_reports": 1,
+            "can_view_reports": 1
+        })
+        perms["scope"] = "all"
+
+    elif position == "finance":
+        perms.update({
+            "can_view_calendar": 0,
+            "can_view_payroll": 1,
+            "can_edit_payroll": 1,
+            "can_view_payroll_reports": 1
+        })
+        perms["scope"] = "all"
+
+    return perms
+
+
+def get_user_permissions(conn, user):
+    defaults = default_permissions_for_user(user)
+
+    if not user:
+        return defaults
+
+    row = conn.execute("SELECT * FROM user_permissions WHERE user_id = ?", (user["id"],)).fetchone()
+    if not row:
+        return defaults
+
+    result = defaults.copy()
+    for field in PERMISSION_FIELDS:
+        result[field] = int(row[field])
+    result["scope"] = row["scope"] or defaults["scope"]
+    return result
+
+
+def has_permission(user, permission_name, conn=None):
+    if not user:
+        return False
+
+    should_close = False
+    if conn is None:
+        conn = get_db()
+        should_close = True
+
+    perms = get_user_permissions(conn, user)
+    allowed = bool(perms.get(permission_name, 0))
+
+    if should_close:
+        conn.close()
+
+    return allowed
+
+
+def permission_scope(user, conn=None):
+    should_close = False
+    if conn is None:
+        conn = get_db()
+        should_close = True
+
+    perms = get_user_permissions(conn, user)
+    scope = perms.get("scope", "self")
+
+    if should_close:
+        conn.close()
+
+    return scope
+
 
 def get_employee_manager_user_id(conn, employee_id):
     employee = conn.execute("SELECT manager_id FROM employees WHERE id = ?", (employee_id,)).fetchone()
@@ -817,21 +1121,151 @@ def user_can_manage_employee(user, employee_id, conn=None):
 
 
 def user_can_manage_schedule_for(user, employee_id, conn=None):
-    # Team managers can schedule only direct/indirect subordinates.
-    # Directors/root admin can schedule everyone.
-    return user_can_manage_employee(user, int(employee_id), conn)
+    should_close = False
+    if conn is None:
+        conn = get_db()
+        should_close = True
+
+    allowed = int(employee_id) in manageable_schedule_employee_ids(user, conn)
+
+    if should_close:
+        conn.close()
+
+    return allowed
+
+
+
+def allowed_schedule_employee_ids(user, conn):
+    """Employees whose shifts the current user may view in the calendar."""
+    if not user or not has_permission(user, "can_view_calendar", conn):
+        return []
+
+    scope = permission_scope(user, conn)
+
+    if scope == "all":
+        rows = conn.execute("SELECT id FROM employees WHERE active = 1").fetchall()
+        return [row["id"] for row in rows]
+
+    if scope == "subordinates" and user["employee_id"]:
+        return get_subordinate_ids(conn, user["employee_id"])
+
+    if scope == "team_and_self" and user["employee_id"]:
+        ids = [user["employee_id"]]
+        ids.extend(get_subordinate_ids(conn, user["employee_id"]))
+        return list(dict.fromkeys(ids))
+
+    if user["employee_id"]:
+        return [user["employee_id"]]
+
+    return []
+
+
+def manageable_schedule_employee_ids(user, conn):
+    """Employees whose schedules the current user may create/edit/delete."""
+    if not user:
+        return []
+
+    perms = get_user_permissions(conn, user)
+    default_perms = default_permissions_for_user(user)
+
+    # A saved custom permission can grant access. Defaults keep product roles working.
+    can_manage = bool(perms.get("can_manage_schedule", 0) or default_perms.get("can_manage_schedule", 0))
+    if not can_manage:
+        return []
+
+    scope = perms.get("scope") or default_perms.get("scope", "self")
+    if default_perms.get("scope") == "all" and scope == "self":
+        scope = "all"
+
+    if scope == "all":
+        rows = conn.execute("SELECT id FROM employees WHERE active = 1").fetchall()
+        return [row["id"] for row in rows]
+
+    if scope in ["subordinates", "team_and_self"] and user["employee_id"]:
+        return get_subordinate_ids(conn, user["employee_id"])
+
+    return []
+
+
+def schedule_scope_label(scope):
+    labels = {
+        "allowed": "Всички позволени",
+        "me": "Само аз",
+        "team": "Моят екип"
+    }
+    return labels.get(scope or "allowed", "Всички позволени")
+
+
+def build_payroll_report_summary(conn, employee_ids, first_day, last_day):
+    if not employee_ids:
+        return {
+            "rows": [],
+            "total_hours": 0,
+            "overtime_hours": 0,
+            "holiday_hours": 0
+        }
+
+    placeholders = ",".join(["?"] * len(employee_ids))
+    rows = conn.execute(f"""
+        SELECT schedule.*, employees.first_name, employees.last_name, departments.name AS department
+        FROM schedule
+        JOIN employees ON employees.id = schedule.employee_id
+        LEFT JOIN departments ON departments.id = employees.department_id
+        WHERE schedule.employee_id IN ({placeholders})
+          AND schedule.work_date BETWEEN ? AND ?
+        ORDER BY employees.first_name, employees.last_name, schedule.work_date, schedule.start_time
+    """, [*employee_ids, first_day, last_day]).fetchall()
+
+    grouped = {}
+    total_hours = 0
+    overtime_hours = 0
+    holiday_hours = 0
+
+    for row in rows:
+        eid = row["employee_id"]
+        if eid not in grouped:
+            grouped[eid] = {
+                "employee_id": eid,
+                "name": f"{row['first_name']} {row['last_name']}",
+                "department": row["department"] or "-",
+                "shifts": 0,
+                "hours": 0,
+                "overtime_hours": 0,
+                "holiday_hours": 0
+            }
+
+        hours = calc_hours(row["start_time"], row["end_time"])
+        grouped[eid]["shifts"] += 1
+        grouped[eid]["hours"] += hours
+        total_hours += hours
+
+        if "Работа в почивен/празничен ден" in (row["notes"] or "") or is_non_working_day(row["work_date"]):
+            grouped[eid]["holiday_hours"] += hours
+            holiday_hours += hours
+
+    for item in grouped.values():
+        item["overtime_hours"] = max(0, item["hours"] - 160)
+        overtime_hours += item["overtime_hours"]
+
+    return {
+        "rows": list(grouped.values()),
+        "total_hours": round(total_hours, 2),
+        "overtime_hours": round(overtime_hours, 2),
+        "holiday_hours": round(holiday_hours, 2)
+    }
+
 
 
 def user_can_view_salary(user, employee_id=None):
-    # Worker sees only own salary.
-    # Finance sees salaries.
-    # Executive sees total/financial overview.
-    # Root admin can see all.
     if not user:
         return False
 
-    if is_root_admin(user) or is_finance(user) or is_executive(user):
-        return True
+    conn = get_db()
+    try:
+        if has_permission(user, "can_view_payroll", conn):
+            return True
+    finally:
+        conn.close()
 
     if employee_id and user["employee_id"] == employee_id:
         return True
@@ -840,8 +1274,7 @@ def user_can_view_salary(user, employee_id=None):
 
 
 def user_can_edit_salary(user):
-    # Salary corrections are only for finance, executive and root admin.
-    return bool(user and (is_root_admin(user) or is_finance(user) or is_executive(user)))
+    return bool(user and has_permission(user, "can_edit_payroll"))
 
 
 def user_can_view_ticket(user, ticket):
@@ -861,23 +1294,28 @@ def user_can_view_ticket(user, ticket):
 
 
 def user_can_process_ticket(user, ticket):
-    if not user:
+    if not user or not has_permission(user, "can_process_tickets"):
         return False
-
-    if is_root_admin(user) or is_executive(user):
-        return True
 
     if ticket["assigned_to"] and user["id"] == ticket["assigned_to"]:
         return True
 
-    if user["employee_id"] and (is_team_manager(user) or is_director_or_above(user)):
-        conn = get_db()
-        try:
-            return int(ticket["employee_id"]) in get_subordinate_ids(conn, user["employee_id"])
-        finally:
-            conn.close()
+    conn = get_db()
+    try:
+        scope = permission_scope(user, conn)
 
-    return False
+        if scope == "all":
+            return True
+
+        if scope in ["subordinates", "team_and_self"] and user["employee_id"]:
+            return int(ticket["employee_id"]) in get_subordinate_ids(conn, user["employee_id"])
+
+        if scope == "self" and user["employee_id"]:
+            return int(ticket["employee_id"]) == int(user["employee_id"])
+
+        return False
+    finally:
+        conn.close()
 
 @app.template_filter("position_label")
 def position_label_filter(value):
@@ -1349,6 +1787,11 @@ def schedule():
     user = current_user()
     conn = get_db()
 
+    if request.method == "GET" and not has_permission(user, "can_view_calendar", conn):
+        conn.close()
+        flash("Нямате достъп до календара.", "danger")
+        return redirect(url_for("dashboard"))
+
     if request.method == "POST":
         today = date.today()
         if not (is_root_admin(user) or is_team_manager(user) or is_director_or_above(user)):
@@ -1433,6 +1876,12 @@ def schedule():
     today = date.today()
     year = int(request.args.get("year", today.year))
     month = int(request.args.get("month", today.month))
+    scope = request.args.get("scope", "allowed")
+    view = request.args.get("view", "month")
+    if view not in ["month", "week"]:
+        view = "month"
+    selected_employee_id = request.args.get("employee_id", "").strip()
+    selected_department_id = request.args.get("department_id", "").strip()
 
     if month < 1:
         month = 12
@@ -1444,6 +1893,17 @@ def schedule():
     first_day = date(year, month, 1)
     last_day_num = calendar.monthrange(year, month)[1]
     last_day = date(year, month, last_day_num)
+
+    week_start_param = request.args.get("week_start")
+    if view == "week":
+        try:
+            display_start = datetime.strptime(week_start_param, "%Y-%m-%d").date() if week_start_param else today - timedelta(days=today.weekday())
+        except Exception:
+            display_start = today - timedelta(days=today.weekday())
+        display_end = display_start + timedelta(days=6)
+    else:
+        display_start = first_day
+        display_end = last_day
 
     prev_month = month - 1
     prev_year = year
@@ -1457,34 +1917,84 @@ def schedule():
         next_month = 1
         next_year += 1
 
-    month_days = [date(year, month, day).isoformat() for day in range(1, last_day_num + 1)]
-    first_weekday = first_day.weekday()
-    calendar_cells = [None] * first_weekday + month_days
-    while len(calendar_cells) % 7 != 0:
-        calendar_cells.append(None)
-
-    if user["role"] == "manager":
-        rows = conn.execute("""
-            SELECT schedule.*, employees.first_name, employees.last_name,
-                   departments.name AS department, employees.hourly_rate
-            FROM schedule
-            JOIN employees ON employees.id = schedule.employee_id
-            LEFT JOIN departments ON departments.id = employees.department_id
-            WHERE work_date BETWEEN ? AND ?
-            ORDER BY work_date, start_time
-        """, (first_day.isoformat(), last_day.isoformat())).fetchall()
+    if view == "week":
+        month_days = [(display_start + timedelta(days=i)).isoformat() for i in range(7)]
+        calendar_cells = month_days[:]
     else:
-        rows = conn.execute("""
-            SELECT schedule.*, employees.first_name, employees.last_name,
-                   departments.name AS department, employees.hourly_rate
-            FROM schedule
-            JOIN employees ON employees.id = schedule.employee_id
-            LEFT JOIN departments ON departments.id = employees.department_id
-            WHERE employee_id = ? AND work_date BETWEEN ? AND ?
-            ORDER BY work_date, start_time
-        """, (user["employee_id"], first_day.isoformat(), last_day.isoformat())).fetchall()
+        month_days = [date(year, month, day).isoformat() for day in range(1, last_day_num + 1)]
+        first_weekday = first_day.weekday()
+        calendar_cells = [None] * first_weekday + month_days
+        while len(calendar_cells) % 7 != 0:
+            calendar_cells.append(None)
 
-    employees_list = conn.execute("SELECT * FROM employees WHERE active = 1 ORDER BY first_name").fetchall()
+    allowed_ids = allowed_schedule_employee_ids(user, conn)
+    manageable_ids = manageable_schedule_employee_ids(user, conn)
+
+    # Scope filters are still restricted by backend permissions.
+    if scope == "me" and user["employee_id"]:
+        visible_ids = [user["employee_id"]] if user["employee_id"] in allowed_ids else []
+    elif scope == "team" and user["employee_id"] and (is_team_manager(user) or is_director_or_above(user)):
+        team_ids = get_subordinate_ids(conn, user["employee_id"])
+        visible_ids = [eid for eid in team_ids if eid in allowed_ids]
+    else:
+        visible_ids = allowed_ids[:]
+
+    if selected_employee_id:
+        try:
+            eid = int(selected_employee_id)
+            visible_ids = [eid] if eid in visible_ids else []
+        except ValueError:
+            visible_ids = []
+
+    params = []
+    employee_filter_sql = " AND 1 = 0"
+    if visible_ids:
+        placeholders = ",".join(["?"] * len(visible_ids))
+        employee_filter_sql = f" AND schedule.employee_id IN ({placeholders})"
+        params.extend(visible_ids)
+
+    department_filter_sql = ""
+    if selected_department_id:
+        department_filter_sql = " AND employees.department_id = ?"
+        params.append(selected_department_id)
+
+    rows = conn.execute(f"""
+        SELECT schedule.*, employees.first_name, employees.last_name,
+               departments.name AS department, employees.hourly_rate
+        FROM schedule
+        JOIN employees ON employees.id = schedule.employee_id
+        LEFT JOIN departments ON departments.id = employees.department_id
+        WHERE schedule.work_date BETWEEN ? AND ?
+        {employee_filter_sql}
+        {department_filter_sql}
+        ORDER BY schedule.work_date, schedule.start_time
+    """, [display_start.isoformat(), display_end.isoformat(), *params]).fetchall()
+
+    if allowed_ids:
+        placeholders = ",".join(["?"] * len(allowed_ids))
+        filter_employees = conn.execute(f"""
+            SELECT employees.*, departments.name AS department
+            FROM employees
+            LEFT JOIN departments ON departments.id = employees.department_id
+            WHERE employees.active = 1 AND employees.id IN ({placeholders})
+            ORDER BY employees.first_name, employees.last_name
+        """, allowed_ids).fetchall()
+    else:
+        filter_employees = []
+
+    if manageable_ids:
+        placeholders = ",".join(["?"] * len(manageable_ids))
+        employees_list = conn.execute(f"""
+            SELECT employees.*, departments.name AS department
+            FROM employees
+            LEFT JOIN departments ON departments.id = employees.department_id
+            WHERE employees.active = 1 AND employees.id IN ({placeholders})
+            ORDER BY employees.first_name, employees.last_name
+        """, manageable_ids).fetchall()
+    else:
+        employees_list = []
+
+    departments = conn.execute("SELECT * FROM departments ORDER BY name").fetchall()
     templates = conn.execute("SELECT * FROM shift_templates ORDER BY start_time").fetchall()
     conn.close()
 
@@ -1503,6 +2013,8 @@ def schedule():
         calendar_cells=calendar_cells,
         by_day=by_day,
         employees=employees_list,
+        filter_employees=filter_employees,
+        departments=departments,
         templates=templates,
         year=year,
         month=month,
@@ -1511,12 +2023,22 @@ def schedule():
         prev_month=prev_month,
         next_year=next_year,
         next_month=next_month,
-        holidays=BULGARIA_HOLIDAYS_2026 if "BULGARIA_HOLIDAYS_2026" in globals() else {}
+        view=view,
+        week_start=display_start.isoformat(),
+        prev_week_start=(display_start - timedelta(days=7)).isoformat(),
+        next_week_start=(display_start + timedelta(days=7)).isoformat(),
+        display_start=display_start.isoformat(),
+        display_end=display_end.isoformat(),
+        holidays=BULGARIA_HOLIDAYS_2026 if "BULGARIA_HOLIDAYS_2026" in globals() else {},
+        scope=scope,
+        selected_employee_id=selected_employee_id,
+        selected_department_id=selected_department_id,
+        can_send_payroll_report=bool(is_team_manager(user) or is_director_or_above(user) or is_root_admin(user))
     )
+
 
 @app.route("/schedule/<int:shift_id>/delete", methods=["POST"])
 @login_required
-@manager_required
 def schedule_delete(shift_id):
     conn = get_db()
 
@@ -1524,6 +2046,10 @@ def schedule_delete(shift_id):
         row = conn.execute("SELECT * FROM schedule WHERE id = ?", (shift_id,)).fetchone()
 
         if row:
+            if not user_can_manage_schedule_for(current_user(), int(row["employee_id"]), conn):
+                flash("Нямате права да изтриете тази смяна.", "danger")
+                return redirect(url_for("schedule"))
+
             conn.execute("DELETE FROM schedule WHERE id = ?", (shift_id,))
             log_employee(row["employee_id"], "Изтрита смяна", f"Изтрита смяна за {row['work_date']}", conn)
 
@@ -1549,7 +2075,6 @@ def schedule_delete(shift_id):
 
 @app.route("/api/schedule/<int:shift_id>/move", methods=["POST"])
 @login_required
-@manager_required
 def move_shift(shift_id):
     data = request.get_json(force=True)
     new_date = data.get("work_date")
@@ -1565,6 +2090,10 @@ def move_shift(shift_id):
         if not row:
             conn.close()
             return jsonify({"ok": False, "error": "Shift not found"}), 404
+
+        if not user_can_manage_schedule_for(current_user(), int(row["employee_id"]), conn):
+            conn.close()
+            return jsonify({"ok": False, "error": "Нямате права за тази смяна."}), 403
 
         conn.execute("UPDATE schedule SET work_date = ?, updated_at = ? WHERE id = ?", (new_date, datetime.now().isoformat(timespec="seconds"), shift_id))
         log_employee(row["employee_id"], "Преместена смяна", f"Смяната е преместена на {new_date}", conn)
@@ -1592,20 +2121,14 @@ def generate_schedule():
     conn = get_db()
 
     try:
-        if not (is_root_admin(user) or is_team_manager(user) or is_director_or_above(user)):
-            flash("Нямате права за генериране на график.", "danger")
+        manageable_ids = manageable_schedule_employee_ids(user, conn)
+        if not manageable_ids:
+            flash("Нямате права за генериране на график или нямате подчинени.", "danger")
             conn.close()
             return redirect(url_for("schedule"))
 
-        if is_team_manager(user) and user["employee_id"]:
-            subordinate_ids = get_subordinate_ids(conn, user["employee_id"])
-            if subordinate_ids:
-                placeholders = ",".join(["?"] * len(subordinate_ids))
-                employees_list = conn.execute(f"SELECT * FROM employees WHERE active = 1 AND id IN ({placeholders})", subordinate_ids).fetchall()
-            else:
-                employees_list = []
-        else:
-            employees_list = conn.execute("SELECT * FROM employees WHERE active = 1").fetchall()
+        placeholders = ",".join(["?"] * len(manageable_ids))
+        employees_list = conn.execute(f"SELECT * FROM employees WHERE active = 1 AND id IN ({placeholders})", manageable_ids).fetchall()
         templates_list = conn.execute("SELECT * FROM shift_templates ORDER BY start_time").fetchall()
 
         if not employees_list:
@@ -1831,6 +2354,8 @@ def ticket_update(ticket_id):
         if status == "approved" and ticket["type"] in ["Отпуска", "Болничен"]:
             remove_employee_shifts_for_period(conn, ticket["employee_id"], ticket["start_date"], ticket["end_date"], ticket["type"])
             notify_coworkers_about_absence(conn, ticket["employee_id"], ticket["start_date"], ticket["end_date"], ticket["type"])
+        mark_ticket_notifications_processed(ticket_id, ticket["employee_id"], ticket["assigned_to"], conn)
+
         target_user_id = user_id_for_employee(ticket["employee_id"], conn)
         if target_user_id:
             labels = {"pending": "чака", "approved": "одобрена", "rejected": "отказана", "closed": "приключена"}
@@ -1871,6 +2396,21 @@ def notifications():
     return render_template("notifications.html", notifications=rows)
 
 
+
+@app.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required
+def notifications_mark_one_read_api(notification_id):
+    conn = get_db()
+    conn.execute("""
+        UPDATE notifications
+        SET is_read = 1
+        WHERE id = ? AND user_id = ?
+    """, (notification_id, session["user_id"]))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
 @app.route("/notifications/mark-read", methods=["POST"])
 @login_required
 def notifications_mark_read():
@@ -1879,7 +2419,17 @@ def notifications_mark_read():
     conn.commit()
     conn.close()
     flash("Известията са маркирани като прочетени.", "success")
-    return redirect(url_for("notifications"))
+    return redirect(url_for("dashboard"))
+
+
+
+@app.route("/api/notifications/module-counts")
+@login_required
+def notifications_module_counts_api():
+    conn = get_db()
+    counts = notification_module_counts(session["user_id"], conn)
+    conn.close()
+    return jsonify({"ok": True, "counts": counts, "total": sum(counts.values())})
 
 
 @app.route("/api/notifications/unread-count")
@@ -1923,7 +2473,7 @@ def push_test():
     if not is_root_admin(current_user()):
         return jsonify({"ok": False, "error": "Само админ може да изпраща тест push."}), 403
 
-    notify_user(session["user_id"], "Тестово push известие", "Ако push е настроен, ще получиш системно известие.", url_for("notifications"))
+    notify_user(session["user_id"], "Тестово push известие", "Ако push е настроен, ще получиш системно известие.", url_for("dashboard"))
     return jsonify({"ok": True})
 
 
@@ -1949,7 +2499,7 @@ def salaries():
         rows = []
 
     total_hours = round(sum(row["hours"] for row in rows), 2)
-    total_salary = round(sum(row["salary"] for row in rows), 2)
+    total_salary = round(sum(row["gross"] for row in rows), 2)
 
     conn.close()
 
@@ -2061,6 +2611,91 @@ def ticket_request_shift():
         conn.close()
 
     return redirect(url_for("tickets"))
+
+
+
+# ---------------- PERMISSIONS ----------------
+
+@app.route("/permissions")
+@login_required
+def permissions_admin():
+    user = current_user()
+
+    if not (is_root_admin(user) or has_permission(user, "can_manage_users")):
+        flash("Нямате права за управление на permissions.", "danger")
+        return redirect(url_for("dashboard"))
+
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT users.id AS user_id, users.username, users.role,
+               employees.first_name, employees.last_name, employees.position,
+               user_permissions.*
+        FROM users
+        LEFT JOIN employees ON employees.id = users.employee_id
+        LEFT JOIN user_permissions ON user_permissions.user_id = users.id
+        ORDER BY users.id DESC
+    """).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "permissions.html",
+        rows=rows,
+        permission_fields=PERMISSION_FIELDS,
+        permission_labels=PERMISSION_LABELS,
+        scope_labels=SCOPE_LABELS
+    )
+
+
+@app.route("/permissions/<int:user_id>/update", methods=["POST"])
+@login_required
+def permissions_update(user_id):
+    user = current_user()
+
+    if not (is_root_admin(user) or has_permission(user, "can_manage_users")):
+        flash("Нямате права за управление на permissions.", "danger")
+        return redirect(url_for("dashboard"))
+
+    scope = request.form.get("scope", "self")
+    if scope not in SCOPE_LABELS:
+        scope = "self"
+
+    values = {}
+    for field in PERMISSION_FIELDS:
+        values[field] = 1 if request.form.get(field) == "1" else 0
+
+    conn = get_db()
+
+    try:
+        conn.execute(f"""
+            INSERT INTO user_permissions
+            (user_id, {", ".join(PERMISSION_FIELDS)}, scope, updated_at)
+            VALUES ({", ".join(["?"] * (len(PERMISSION_FIELDS) + 3))})
+            ON CONFLICT(user_id)
+            DO UPDATE SET
+                {", ".join([field + " = excluded." + field for field in PERMISSION_FIELDS])},
+                scope = excluded.scope,
+                updated_at = excluded.updated_at
+        """, (
+            user_id,
+            *[values[field] for field in PERMISSION_FIELDS],
+            scope,
+            datetime.now().isoformat(timespec="seconds")
+        ))
+
+        conn.commit()
+        flash("Правата са запазени.", "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"Грешка: {e}", "danger")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("permissions_admin"))
+
 
 
 # ---------------- TEAM / BONUS / REPORTS ----------------
@@ -2585,8 +3220,11 @@ def payroll_tools():
 
     conn = get_db()
     rows = salary_rows(conn, first.isoformat(), last.isoformat())
-    total_gross = round(sum(r["salary"] for r in rows), 2)
-    total_net = round(total_gross * 0.78, 2)
+    total_gross = round(sum(r["gross"] for r in rows), 2)
+    total_net = round(sum(r["net"] for r in rows), 2)
+    total_employer_cost = round(sum(r["employer_total"] for r in rows), 2)
+    total_employee_social = round(sum(r["employee_social"] for r in rows), 2)
+    total_income_tax = round(sum(r["income_tax"] for r in rows), 2)
     total_hours = round(sum(r["hours"] for r in rows), 2)
     total_overtime = round(sum(r.get("overtime_hours", 0) for r in rows), 2)
     active_employees = conn.execute("SELECT COUNT(*) AS c FROM employees WHERE active = 1").fetchone()["c"]
@@ -2601,6 +3239,9 @@ def payroll_tools():
         total_net=total_net,
         total_hours=total_hours,
         total_overtime=total_overtime,
+        total_employer_cost=total_employer_cost,
+        total_employee_social=total_employee_social,
+        total_income_tax=total_income_tax,
         active_employees=active_employees
     )
 
@@ -2742,6 +3383,155 @@ def help_page():
 
 
 
+
+@app.route("/schedule/send-payroll-report", methods=["POST"])
+@login_required
+def send_payroll_report():
+    user = current_user()
+
+    if not (is_team_manager(user) or is_director_or_above(user) or is_root_admin(user)):
+        flash("Нямате права да изпращате справка към финансов отдел.", "danger")
+        return redirect(url_for("schedule"))
+
+    year = int(request.form.get("year"))
+    month = int(request.form.get("month"))
+    notes = request.form.get("notes", "").strip()
+
+    first_day = date(year, month, 1)
+    last_day = date(year, month, calendar.monthrange(year, month)[1])
+
+    conn = get_db()
+
+    try:
+        if is_team_manager(user) and user["employee_id"]:
+            employee_ids = get_subordinate_ids(conn, user["employee_id"])
+        elif is_director_or_above(user) or is_root_admin(user):
+            employee_ids = allowed_schedule_employee_ids(user, conn)
+        else:
+            employee_ids = []
+
+        if not employee_ids:
+            flash("Няма служители за справка.", "danger")
+            conn.close()
+            return redirect(url_for("schedule", year=year, month=month))
+
+        summary = build_payroll_report_summary(
+            conn,
+            employee_ids,
+            first_day.isoformat(),
+            last_day.isoformat()
+        )
+
+        now = datetime.now().isoformat(timespec="seconds")
+
+        conn.execute("""
+            INSERT INTO payroll_reports
+            (manager_user_id, manager_employee_id, year, month, employee_ids, total_hours, overtime_hours, holiday_hours, notes, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?)
+        """, (
+            session["user_id"],
+            user["employee_id"],
+            year,
+            month,
+            json.dumps(employee_ids),
+            summary["total_hours"],
+            summary["overtime_hours"],
+            summary["holiday_hours"],
+            notes,
+            now
+        ))
+
+        finance_users = conn.execute("""
+            SELECT users.id
+            FROM users
+            LEFT JOIN employees ON employees.id = users.employee_id
+            WHERE employees.position = 'finance'
+               OR (users.role = 'manager' AND users.employee_id IS NULL)
+        """).fetchall()
+
+        sender_name = user["first_name"] or user["username"]
+
+        for finance_user in finance_users:
+            notify_user(
+                finance_user["id"],
+                "Нова payroll справка",
+                f"{sender_name} изпрати справка за {month:02d}.{year}.",
+                url_for("payroll_reports"),
+                conn
+            )
+
+        conn.commit()
+        flash("Справката е изпратена към финансов отдел.", "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"Грешка при изпращане на справка: {e}", "danger")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("schedule", year=year, month=month))
+
+
+@app.route("/payroll-reports")
+@login_required
+def payroll_reports():
+    user = current_user()
+
+    if not (is_finance(user) or is_executive(user) or is_root_admin(user)):
+        flash("Само финансов отдел/директор има достъп до payroll справки.", "danger")
+        return redirect(url_for("dashboard"))
+
+    conn = get_db()
+
+    rows = conn.execute("""
+        SELECT payroll_reports.*,
+               users.username AS manager_username,
+               employees.first_name AS manager_first_name,
+               employees.last_name AS manager_last_name
+        FROM payroll_reports
+        JOIN users ON users.id = payroll_reports.manager_user_id
+        LEFT JOIN employees ON employees.id = payroll_reports.manager_employee_id
+        ORDER BY payroll_reports.created_at DESC
+        LIMIT 200
+    """).fetchall()
+
+    conn.close()
+
+    return render_template("payroll_reports.html", reports=rows)
+
+
+@app.route("/payroll-reports/<int:report_id>/status", methods=["POST"])
+@login_required
+def payroll_report_status(report_id):
+    user = current_user()
+
+    if not (is_finance(user) or is_executive(user) or is_root_admin(user)):
+        flash("Нямате права да обработвате payroll справки.", "danger")
+        return redirect(url_for("dashboard"))
+
+    status = request.form.get("status", "sent")
+    if status not in ["sent", "reviewed", "processed"]:
+        status = "sent"
+
+    conn = get_db()
+
+    try:
+        conn.execute("UPDATE payroll_reports SET status = ? WHERE id = ?", (status, report_id))
+        conn.commit()
+        flash("Статусът е обновен.", "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"Грешка: {e}", "danger")
+
+    finally:
+        conn.close()
+
+    return redirect(url_for("payroll_reports"))
+
+
+
 # ---------------- DEPARTMENTS ----------------
 
 @app.route("/departments", methods=["GET", "POST"])
@@ -2777,7 +3567,22 @@ def database():
     conn = get_db()
     tables = {}
 
-    for table in ["users", "employees", "departments", "shift_templates", "schedule", "employee_logs", "tickets", "notifications", "push_subscriptions"]:
+    for table in [
+        "users",
+        "employees",
+        "departments",
+        "shift_templates",
+        "schedule",
+        "employee_logs",
+        "tickets",
+        "notifications",
+        "push_subscriptions",
+        "bonuses",
+        "salary_corrections",
+        "feedback_reports",
+        "payroll_reports",
+        "user_permissions"
+    ]:
         tables[table] = conn.execute(f"SELECT * FROM {table} LIMIT 100").fetchall()
 
     conn.close()

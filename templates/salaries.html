@@ -32,7 +32,7 @@
     <div class="stat">{{ "%.2f"|format(total_hours) }}</div>
   </div>
   <div class="card">
-    <div class="muted">Общо заплати</div>
+    <div class="muted">Брутно общо</div>
     <div class="stat">{{ total_salary|money }}</div>
   </div>
 </div>
@@ -46,7 +46,7 @@
         <th>Смени</th>
         <th>Часове</th><th>Извънредни</th>
         <th>Ставка</th>
-        <th>Брутно</th><th>Нетно*</th>
+        <th>Брутно</th><th>Осиг.</th><th>Данък</th><th>Нетно</th>
       </tr>
     </thead>
     <tbody>
@@ -57,13 +57,13 @@
         <td>{{ row.shifts }}</td>
         <td>{{ "%.2f"|format(row.hours) }}</td><td>{{ "%.2f"|format(row.overtime_hours or 0) }}</td>
         <td>{{ row.hourly_rate|money }}</td>
-        <td><strong>{{ row.salary|money }}</strong></td><td>{{ (row.salary * 0.78)|money }}</td>
+        <td><strong>{{ row.gross|money }}</strong></td><td>{{ row.employee_social|money }}</td><td>{{ row.income_tax|money }}</td><td>{{ row.net|money }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="8">Няма данни за този период.</td></tr>
+      <tr><td colspan="10">Няма данни за този период.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<p class="muted" style="margin-top:12px;">*Нетното е ориентировъчно с 22% удръжки. По-късно може да добавим точни осигуровки/данъци.</p>
+<p class="muted" style="margin-top:12px;">*Сметката използва приблизителни ставки за България: 13.78% осигуровки за служител и 10% ДОД.</p>
 {% endblock %}
