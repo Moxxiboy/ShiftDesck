@@ -805,7 +805,7 @@ def manifest():
 
 @app.route("/service-worker.js")
 def service_worker():
-    return send_from_directory(static, "service-worker.js")
+    return send_from_directory(app.static_folder, "service-worker.js")
 
 
 # ---------------- SETTINGS ----------------
