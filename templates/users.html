@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% set page_title = "Потребители" %}
+{% set title = "Потребители" %}
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div><h2 style="margin:0;">🔐 Потребители</h2><div class="muted">Създаване на достъп, временни пароли и reset.</div></div>
+  <button class="btn" onclick="document.getElementById('addUserForm').style.display='block'">+ Нов потребител</button>
+</div>
+<div id="addUserForm" class="card" style="display:none; margin-bottom:18px;">
+  <h3 style="margin-top:0;">+ Нов потребител</h3>
+  <form method="POST" action="{{ url_for('user_add') }}">
+    <div class="form-grid">
+      <div><label>Потребителско име</label><input type="text" name="username" required></div>
+      <div><label>Роля</label><select name="role" required><option value="employee">Служител</option><option value="manager">Ръководител</option></select></div>
+      <div class="full"><label>Свържи със служител</label><select name="employee_id"><option value="">Без служител / за ръководител</option>{% for emp in employees %}<option value="{{ emp.id }}">{{ emp.first_name }} {{ emp.last_name }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="row" style="margin-top:16px;"><button class="btn" type="submit">Създай</button><button class="btn secondary" type="button" onclick="document.getElementById('addUserForm').style.display='none'">Отказ</button></div>
+  </form>
+</div>
+<div class="card table-wrap">
+  <table>
+    <thead><tr><th>ID</th><th>Потребител</th><th>Роля</th><th>Служител</th><th>Смяна парола</th><th>Действия</th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.id }}</td><td><strong>{{ u.username }}</strong></td><td>{% if u.role == 'manager' %}🧑‍💼 Ръководител{% else %}👤 Служител{% endif %}</td>
+        <td>{% if u.first_name %}{{ u.first_name }} {{ u.last_name }}{% else %}-{% endif %}</td>
+        <td>{% if u.must_change_password == 1 %}<span class="badge">⚠️ Да</span>{% else %}<span class="badge">OK</span>{% endif %}</td>
+        <td><div class="row"><form method="POST" action="{{ url_for('user_reset_password', user_id=u.id) }}"><button class="btn small" type="submit">🔄 Reset</button></form>{% if u.id != current_user.id %}<form method="POST" action="{{ url_for('user_delete', user_id=u.id) }}" onsubmit="return confirm('Сигурен ли си?')"><button class="btn small danger" type="submit">🗑️</button></form>{% endif %}</div></td>
+      </tr>
+      {% else %}<tr><td colspan="6">Няма потребители.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
