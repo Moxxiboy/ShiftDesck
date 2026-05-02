@@ -1,5 +1,0 @@
-Flask
-gunicorn
-reportlab
-pywebpush
-cryptography
