@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% set page_title = "Debug права" %}
+{% set title = "Debug права" %}
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">🧪 Debug права</h2>
+    <div class="muted">Проверка кой какво вижда и кого може да управлява.</div>
+  </div>
+  <a class="btn secondary" href="{{ url_for('permissions_admin') }}">Права</a>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(360px,1fr));">
+  {% for item in rows %}
+  <div class="card">
+    <h3 style="margin-top:0;">{{ item.user.username }}</h3>
+    <div class="muted">
+      {% if item.user.first_name %}{{ item.user.first_name }} {{ item.user.last_name }}{% else %}Root/Admin{% endif %}
+      · {{ item.user.position|position_label if item.user.position else item.user.role }}
+    </div>
+
+    <h4>Обхват</h4>
+    <div class="badge">{{ scope_labels.get(item.perms.scope, item.perms.scope) }}</div>
+
+    <h4>Права</h4>
+    {% for key,label in permission_labels.items() %}
+      <div>{% if item.perms[key] %}✅{% else %}❌{% endif %} {{ label }}</div>
+    {% endfor %}
+
+    <h4>Вижда график на</h4>
+    {% for e in item.visible %}
+      <div>👁️ {{ e.first_name }} {{ e.last_name }}</div>
+    {% else %}
+      <div class="muted">Никой</div>
+    {% endfor %}
+
+    <h4>Може да управлява график на</h4>
+    {% for e in item.manageable %}
+      <div>✏️ {{ e.first_name }} {{ e.last_name }}</div>
+    {% else %}
+      <div class="muted">Никой</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
