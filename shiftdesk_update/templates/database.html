@@ -1,3 +1,0 @@
-{% extends 'base.html' %}{% set page_title='База данни' %}{% block content %}
-{% for name, rows in tables.items() %}<div class="card"><h2>{{ name }}</h2><div style="overflow:auto"><table>{% if rows %}<tr>{% for key in rows[0].keys() %}<th>{{ key }}</th>{% endfor %}</tr>{% for r in rows %}<tr>{% for key in r.keys() %}<td>{{ r[key] }}</td>{% endfor %}</tr>{% endfor %}{% else %}<tr><td class="muted">Няма записи.</td></tr>{% endif %}</table></div></div><br>{% endfor %}
-{% endblock %}
