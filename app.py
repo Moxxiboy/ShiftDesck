@@ -71,7 +71,7 @@ def _pg_translate_sql(sql):
     sql = sql.replace("INSERT OR IGNORE INTO", "INSERT INTO")
 
     # psycopg2 uses %s placeholders. Literal % in SQL LIKE patterns must be escaped as %%.
-    # Example: LIKE '%schedule%' -> LIKE '%%schedule%%'
+    # Example: LIKE '%%schedule%%' -> LIKE '%%schedule%%'
     sql = re.sub(r"(?<!%)%(?!s)", "%%", sql)
 
     # SQLite placeholder compatibility.
@@ -1954,11 +1954,14 @@ def schedule():
             WHERE user_id = ?
               AND is_read = 0
               AND (
-                    COALESCE(link, '') LIKE '%schedule%'
-                 OR title LIKE '%смяна%'
-                 OR title LIKE '%график%'
-                 OR message LIKE '%смяна%'
-                 OR message LIKE '%график%'
+                    COALESCE(link, '') 
+                    
+                LIKE '%%schedule%%'
+OR title LIKE '%%смяна%%'
+OR title LIKE '%%график%%'
+OR message LIKE '%%смяна%%'
+OR message LIKE '%%график%%'
+
               )
         """, (session["user_id"],))
         conn.commit()
