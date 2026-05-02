@@ -1,7 +1,0 @@
-const CACHE_NAME="shiftdesk-v2";
-const APP_SHELL=["/","/dashboard","/manifest.json","/static/icon.svg"];
-self.addEventListener("install",event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(APP_SHELL)));self.skipWaiting();});
-self.addEventListener("activate",event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener("fetch",event=>{const req=event.request;if(req.method!=="GET")return;event.respondWith(fetch(req).catch(()=>caches.match(req).then(cached=>cached||caches.match("/"))));});
-self.addEventListener("push",event=>{let data={title:"ShiftDesk",body:"Имате ново известие.",url:"/dashboard",icon:"/static/icon.svg"};try{data=event.data.json();}catch(e){}event.waitUntil(self.registration.showNotification(data.title||"ShiftDesk",{body:data.body||"Имате ново известие.",icon:data.icon||"/static/icon.svg",badge:"/static/icon.svg",vibrate:[160,60,160],data:{url:data.url||"/dashboard"},requireInteraction:false}));});
-self.addEventListener("notificationclick",event=>{event.notification.close();const url=event.notification.data&&event.notification.data.url?event.notification.data.url:"/dashboard";event.waitUntil(clients.matchAll({type:"window",includeUncontrolled:true}).then(list=>{for(const client of list){if(client.url.includes(self.location.origin)&&"focus" in client){client.navigate(url);return client.focus();}}if(clients.openWindow)return clients.openWindow(url);}));});
