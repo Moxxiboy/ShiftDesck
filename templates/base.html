@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070b14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="{{ url_for('manifest') }}">
+  <title>{{ title or 'ShiftDesk' }}</title>
+  <style>
+    :root{--bg:#070b14;--panel:#0e1628;--panel2:#121d33;--text:#e8eefc;--muted:#93a4c4;--accent:#7c3aed;--accent2:#06b6d4;--danger:#ef4444;--ok:#22c55e;--line:#22304d}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;background:radial-gradient(circle at top left,#172554,#070b14 42%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+    body.theme-light{--bg:#f6f7fb;--panel:#ffffff;--panel2:#eef2ff;--text:#101827;--muted:#475569;--line:#d9e0ef;background:#f6f7fb;color:var(--text)}
+    a{color:inherit;text-decoration:none}
+    .layout{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}
+    .sidebar{background:rgba(14,22,40,.94);border-right:1px solid var(--line);padding:24px;position:sticky;top:0;height:100vh;overflow:auto}
+    .brand{font-size:24px;font-weight:900;margin-bottom:18px;letter-spacing:-.03em}.brand span{color:var(--accent2)}
+    .user-mini{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:12px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.03)}
+    .avatar{width:52px;height:52px;border-radius:18px;object-fit:cover;border:1px solid var(--line);background:#0b1221}
+    .nav a{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:14px;color:var(--muted);margin:6px 0;font-weight:700}
+    .nav a:hover,.nav a.active{background:linear-gradient(135deg,rgba(124,58,237,.24),rgba(6,182,212,.14));color:white}
+    .nav-count{background:#ef4444;color:white;font-size:12px;border-radius:999px;padding:2px 7px}
+    .main{padding:28px;overflow:auto;min-width:0}
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:20px}.topbar-spacer{flex:1}.app-topbar{justify-content:flex-end}
+    .topbar h1{margin:0;font-size:32px;letter-spacing:-.04em}
+    .muted{color:var(--muted)}
+    .badge{background:rgba(124,58,237,.22);color:#d8c7ff;padding:8px 12px;border-radius:999px;border:1px solid rgba(124,58,237,.35);display:inline-flex;gap:6px;align-items:center}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+    .card{background:linear-gradient(180deg,rgba(18,29,51,.96),rgba(14,22,40,.96));border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.23);transition:border-color .15s ease}
+    .card:hover{border-color:rgba(124,58,237,.45)}
+    .stat{font-size:32px;font-weight:900}
+    .btn{border:0;border-radius:14px;padding:11px 14px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;font-weight:800;cursor:pointer;display:inline-block}
+    .btn.secondary{background:#1f2a44}.btn.danger{background:var(--danger)}.btn.small{padding:7px 10px;font-size:12px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.space{justify-content:space-between}
+    input,select,textarea{width:100%;padding:12px 14px;background:#0b1221;border:1px solid var(--line);border-radius:14px;color:var(--text);font-size:16px}
+    label{display:block;margin:10px 0 6px;color:var(--muted)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.full{grid-column:1/-1}
+    table{width:100%;border-collapse:collapse}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-weight:700}.table-wrap{overflow-x:auto}
+    .flash{padding:12px 14px;border-radius:14px;margin-bottom:12px;background:#13213b;border:1px solid var(--line)}
+    .danger{color:#fecaca}.success{color:#bbf7d0}.info{color:#bae6fd}
+    .quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+    .quick-card{display:block;background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(6,182,212,.14));border:1px solid rgba(124,58,237,.35);border-radius:20px;padding:18px}
+    .quick-card strong{display:block;font-size:18px;margin-bottom:6px}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}.tab{padding:10px 14px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}.tab.active{background:linear-gradient(135deg,rgba(124,58,237,.25),rgba(6,182,212,.14));color:white}
+    .month-calendar{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:12px}.weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:10px;color:var(--muted);font-size:13px;font-weight:800;text-align:center}
+    .month-cell{min-height:170px;background:linear-gradient(180deg,rgba(18,29,51,.95),rgba(14,22,40,.95));border:1px solid var(--line);border-radius:18px;padding:12px;cursor:pointer}
+    .month-cell.empty{opacity:.35;cursor:default}.month-cell.holiday{border-color:rgba(239,68,68,.55);background:linear-gradient(180deg,rgba(127,29,29,.35),rgba(14,22,40,.95))}
+    .month-date{font-weight:900;margin-bottom:10px}.shift{padding:12px;border-radius:18px;background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(6,182,212,.14));border:1px solid rgba(124,58,237,.35);margin-bottom:10px;cursor:grab}.shift strong{display:block}.pill{font-size:12px;color:#cffafe}
+    .login-wrap{display:grid;place-items:center;min-height:100vh;padding:20px}.login{width:min(430px,100%)}
+    .avatar-wrap{position:relative}.avatar-button{border:0;background:transparent;color:inherit;display:flex;align-items:center;gap:10px;cursor:pointer}
+    .avatar-menu{position:absolute;right:0;top:56px;z-index:200;display:none;min-width:250px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:10px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+    .avatar-menu.show{display:block}.avatar-menu a,.avatar-menu button{width:100%;display:block;text-align:left;border:0;background:transparent;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer;font:inherit}.avatar-menu a:hover,.avatar-menu button:hover{background:#1f2a44}
+    .switch{position:relative;display:inline-flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:12px;cursor:pointer;color:var(--text)}
+    .switch input{display:none}.slider{width:46px;height:24px;border-radius:999px;background:#334155;position:relative;display:inline-block;flex:none}.slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}.switch input:checked+.slider{background:linear-gradient(135deg,var(--accent),var(--accent2))}.switch input:checked+.slider:before{transform:translateX(22px)}
+    .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:240;align-items:center;justify-content:center;padding:18px}.modal-backdrop.show{display:flex}.modal-card{width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.45)}
+    .bottom-nav{display:none}.toast-notification{position:fixed;right:16px;top:16px;z-index:150;max-width:360px;background:linear-gradient(135deg,rgba(124,58,237,.95),rgba(6,182,212,.9));color:white;border-radius:18px;padding:14px 16px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:none}.toast-notification.show{display:block}.toast-title{font-weight:900;margin-bottom:4px}.toast-x{position:absolute;right:10px;top:8px;border:0;background:rgba(255,255,255,.18);color:white;border-radius:999px;width:26px;height:26px;font-size:18px;cursor:pointer}.toast-actions{margin-top:10px}.toast-actions button{border:0;background:white;color:#1e1b4b;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}.created-by-footer{margin-top:28px;color:var(--muted);font-size:12px;text-align:center;opacity:.75}.app-status{font-size:12px;color:var(--muted);padding:8px 12px}.install-button{display:none}
+    body.theme-light .card,body.theme-light .month-cell{background:#fff;color:#0f172a;box-shadow:0 10px 28px rgba(15,23,42,.08)}body.theme-light .sidebar,body.theme-light .bottom-nav{background:rgba(255,255,255,.96)}body.theme-light input,body.theme-light select,body.theme-light textarea{background:#f8fafc;color:#101827;border-color:#cbd5e1}body.theme-light .badge{background:#e0e7ff;color:#1e1b4b;border-color:#c7d2fe}body.theme-light .muted{color:#475569}body.theme-light .btn.secondary{background:#e2e8f0;color:#0f172a}body.theme-light .avatar-menu{background:white;color:#0f172a}body.theme-light .avatar-menu a,body.theme-light .avatar-menu button{color:#0f172a}body.theme-light .avatar-menu a:hover,body.theme-light .avatar-menu button:hover{background:#e2e8f0}body.theme-light table th{color:#334155}body.theme-light table td{color:#0f172a}body.theme-light .month-cell.holiday{background:linear-gradient(180deg,#fee2e2,#ffffff);border-color:#fca5a5}
+    @media(max-width:1000px){.layout{grid-template-columns:1fr}.sidebar{position:relative;height:auto;padding:18px}.nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.nav a{margin:0}.grid{grid-template-columns:1fr 1fr}.month-calendar{grid-template-columns:1fr}.weekday-row{display:none}.month-cell{min-height:auto}.form-grid{grid-template-columns:1fr}.topbar{align-items:flex-start;flex-direction:column;gap:12px}}
+    @media(max-width:650px){body{padding-bottom:82px}.sidebar{display:none}.main{padding:16px}.grid{grid-template-columns:1fr}.card{padding:16px;border-radius:18px}h1{font-size:26px;margin:0}h2{font-size:21px}table{min-width:680px}.topbar{display:block;margin-bottom:16px}.topbar .muted{font-size:13px}.avatar-wrap{display:none}.bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:100;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(14,22,40,.96);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(16px)}.bottom-nav a{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted);padding:6px;border-radius:12px}.bottom-nav a strong{font-size:18px;line-height:18px}.mobile-count{position:absolute;margin-left:22px;margin-top:-4px;background:#ef4444;color:white;border-radius:999px;font-size:10px;padding:1px 5px}.modal-card{border-radius:20px;padding:16px}.month-cell{padding:14px}.shift{cursor:default}}
+  
+    .module-badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 7px;background:#ef4444;color:white;border-radius:999px;font-size:12px;font-weight:900;box-shadow:0 0 0 3px rgba(239,68,68,.18)}
+    .nav a .module-badge{margin-left:auto}
+    .mobile-count.module-badge{position:absolute;margin-left:24px;margin-top:-8px;min-width:19px;height:19px;font-size:10px;padding:0 5px}
+    .app-shell-card{border-radius:26px}
+    @media(max-width:650px){
+      body{overscroll-behavior:none}
+      .main{padding-top:calc(14px + env(safe-area-inset-top))}
+      .card{box-shadow:0 10px 34px rgba(0,0,0,.18)}
+      .btn,input,select,textarea{min-height:46px}
+      .quick-card,.card{border-radius:22px}
+    }
+
+    .mobile-topbar{display:none}
+    @media(max-width:650px){
+      .mobile-topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.04)}
+      .mobile-topbar strong{display:block;font-size:18px}
+      .mobile-topbar span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+      .mobile-topbar a{font-size:22px}
+      .topbar{display:none}
+      .grid{gap:12px}
+      .card{padding:14px}
+      .stat{font-size:26px}
+      .bottom-nav{grid-template-columns:repeat(5,1fr)}
+      .bottom-nav a{min-height:54px;justify-content:center}
+      .toast-notification{left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));max-width:none}
+    }
+
+    .mobile-drawer-toggle{display:none}
+    .mobile-drawer-backdrop{display:none}
+    .mobile-drawer{display:none}
+    @media(max-width:650px){
+      body{padding-bottom:0!important}
+      .bottom-nav{display:none!important}
+      .mobile-drawer-toggle{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:14px;background:#1f2a44;color:white;width:46px;height:46px;font-size:24px}
+      .mobile-topbar{display:flex!important;position:sticky;top:0;z-index:90;justify-content:space-between;align-items:center;margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:rgba(14,22,40,.94);backdrop-filter:blur(14px)}
+      .mobile-topbar strong{display:block;font-size:18px}
+      .mobile-topbar span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+      .mobile-drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.58);z-index:210}
+      .mobile-drawer-backdrop.show{display:block}
+      .mobile-drawer{display:block;position:fixed;top:0;bottom:0;left:0;width:min(86vw,340px);z-index:220;background:var(--panel);border-right:1px solid var(--line);padding:18px;transform:translateX(-105%);transition:.22s ease;overflow:auto}
+      .mobile-drawer.show{transform:translateX(0)}
+      .mobile-drawer .brand{margin-bottom:12px}
+      .mobile-drawer .nav a{margin:5px 0}
+      .topbar{display:none!important}
+      .main{padding-top:calc(10px + env(safe-area-inset-top))}
+    }
+
+    .mobile-top-actions{display:flex;align-items:center;gap:8px}
+    .mobile-quick-link{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:14px;background:#1f2a44;color:white;width:46px;height:46px;font-size:22px}
+
+    .mobile-quick-link{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:12px;background:#1f2a44;color:white;width:40px;height:40px;font-size:20px}
+    @media(max-width:650px){
+      .mobile-drawer-toggle{width:40px!important;height:40px!important;font-size:21px!important;border-radius:12px!important}
+      .mobile-topbar{padding:9px 11px!important;border-radius:16px!important}
+      .mobile-top-actions{gap:7px!important}
+      .btn{padding:9px 11px!important;border-radius:12px!important}
+      .btn.small{padding:6px 8px!important;font-size:12px!important}
+      .mobile-drawer .nav{display:block!important}
+      .mobile-drawer .nav a{display:flex!important;width:100%!important;justify-content:space-between!important;align-items:center!important;margin:6px 0!important;padding:12px 13px!important}
+    }
+
+    .compact-shift{position:relative;padding:7px 9px;margin:6px 0;border-radius:12px}
+    .compact-shift strong{font-size:13px}
+    .month-cell{position:relative}
+    @media(max-width:650px){
+      .btn{min-height:40px!important;font-size:14px!important}
+      .mobile-drawer .nav a{font-size:15px}
+      .mobile-topbar strong{font-size:16px!important}
+    }
+
+
+    .calendar-nav{justify-content:flex-end}
+    .calendar-nav-btn{white-space:nowrap}
+    .calendar-month-btn{white-space:nowrap}
+    .calendar-bottom-actions{margin:16px 0 6px;display:flex;justify-content:center}
+    @media(max-width:650px){
+      .calendar-nav{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;align-items:stretch}
+      .calendar-nav .btn{width:100%;text-align:center;padding:8px 7px!important;min-height:38px!important;font-size:13px!important;border-radius:12px!important;display:flex;align-items:center;justify-content:center}
+      .calendar-month-btn{grid-column:1/-1;margin-top:2px}
+      .calendar-bottom-actions .btn{width:100%;padding:10px 12px!important;font-size:14px!important}
+      .month-calendar{grid-template-columns:1fr!important;gap:10px}
+      .weekday-row{display:none!important}
+      .month-cell{min-height:auto!important;padding:12px!important;border-radius:18px!important}
+      .month-date{font-size:18px;font-weight:900}
+      .compact-shift{padding:8px 10px!important;margin:7px 0!important}
+      .compact-shift strong{font-size:15px!important}
+      .row.space{align-items:flex-start}
+      .row.space>div:first-child{width:100%}
+      .row.space h2{font-size:25px;line-height:1.2}
+    }
+
+
+    .shift-time-inline{font-size:12px;color:var(--muted);margin-top:3px;font-weight:700}
+    .mobile-shift-time{display:none;font-size:12px;color:var(--muted);margin-top:4px;font-weight:800;line-height:1.15}
+    @media(max-width:650px){
+      .shift-time-inline{font-size:13px;color:#b9c7e6;margin-top:4px}
+      .compact-shift{line-height:1.2}
+    }
+
+
+    body.sheet-open{overflow:hidden}
+    .sheet-handle{width:46px;height:5px;border-radius:999px;background:rgba(255,255,255,.25);margin:0 auto 14px}
+    .sheet-info{display:grid;gap:10px;margin-top:16px;color:var(--text);font-size:16px}
+    .sheet-info div{padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.04)}
+    .compact-shift{cursor:pointer}
+
+
+    .permission-help{font-size:12px;color:var(--muted);margin:-4px 0 9px 58px;line-height:1.35}
+    .permission-switch{align-items:flex-start!important}
+
+    .permission-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0}
+    .permission-row .switch{flex:1;margin:0}
+    .info-dot{border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--muted);border-radius:999px;width:30px;height:30px;font-weight:900;cursor:pointer}
+    .info-dot:hover{color:white;background:rgba(124,58,237,.22)}
+    .info-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300}
+    .info-backdrop.show{display:block}
+    .info-box{position:fixed;left:50%;top:50%;transform:translate(-50%,-45%) scale(.96);opacity:0;pointer-events:none;z-index:310;width:min(92vw,520px);background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:18px;box-shadow:0 25px 80px rgba(0,0,0,.45);transition:.18s ease}
+    .info-box.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+
+    .payroll-row{cursor:pointer}
+    .payroll-row:hover{background:rgba(124,58,237,.12)}
+    .payroll-detail-card{max-width:980px;max-height:88vh;overflow:auto}
+    @media(max-width:650px){
+      .payroll-list-table th:nth-child(2),.payroll-list-table td:nth-child(2),
+      .payroll-list-table th:nth-child(4),.payroll-list-table td:nth-child(4),
+      .payroll-list-table th:nth-child(5),.payroll-list-table td:nth-child(5){display:none}
+      .payroll-detail-card{width:96vw;max-height:86vh;padding:14px}
+    }
+
+    .payroll-profile-head{gap:14px}
+    .payroll-profile-photo{width:86px;height:86px;border-radius:24px;object-fit:cover;border:1px solid var(--line);background:#0b1221;display:grid;place-items:center;font-size:38px}
+    .payroll-profile-photo.placeholder{display:grid;place-items:center}
+    @media(max-width:650px){.payroll-profile-photo{width:70px;height:70px;border-radius:20px}.payroll-detail-card .grid{grid-template-columns:1fr!important}}
+
+    .payroll-report-row{cursor:pointer}
+    .payroll-report-row:hover{background:rgba(124,58,237,.12)}
+    .report-detail-card{max-width:920px;max-height:88vh;overflow:auto}
+    @media(max-width:650px){
+      .report-detail-card{width:96vw;max-height:86vh;padding:14px}
+    }
+
+    .payroll-dossier-card{max-width:1180px;width:min(96vw,1180px);max-height:90vh;overflow:auto}
+    .payroll-dossier-header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+    .payroll-dossier-person{display:flex;align-items:center;gap:16px}
+    .payroll-dossier-photo{width:96px;height:96px;border-radius:26px;object-fit:cover;border:1px solid var(--line);background:#0b1221;display:grid;place-items:center;font-size:42px}
+    .payroll-dossier-layout{display:grid;grid-template-columns:310px minmax(0,1fr);gap:18px}
+    .payroll-dossier-left{display:grid;gap:14px;align-content:start}
+    .payroll-dossier-main{display:grid;gap:16px}
+    .dossier-info-list{display:grid;gap:12px}
+    .dossier-info-list div{display:grid;gap:4px;padding:10px 0;border-bottom:1px solid var(--line)}
+    .dossier-info-list div:last-child{border-bottom:0}
+    .dossier-info-list span{color:var(--muted);font-size:13px}
+    .dossier-metrics,.dossier-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .dossier-money .total{border-color:rgba(6,182,212,.45);background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(6,182,212,.12))}
+    .dossier-forms{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .payroll-row{cursor:pointer}
+    .payroll-row:hover{background:rgba(124,58,237,.12)}
+    @media(max-width:900px){
+      .payroll-dossier-layout{grid-template-columns:1fr}
+      .dossier-metrics,.dossier-money,.dossier-forms{grid-template-columns:1fr}
+      .payroll-dossier-photo{width:76px;height:76px;border-radius:22px}
+      .payroll-list-table th:nth-child(2),.payroll-list-table td:nth-child(2),
+      .payroll-list-table th:nth-child(4),.payroll-list-table td:nth-child(4),
+      .payroll-list-table th:nth-child(5),.payroll-list-table td:nth-child(5){display:none}
+    }
+
+
+    body.theme-purple{--bg:#0b0716;--panel:#151027;--panel2:#20153a;--text:#f1eaff;--muted:#b7a8d8;--accent:#a855f7;--accent2:#22d3ee;--line:#3b2a63;background:radial-gradient(circle at top left,#4c1d95,#0b0716 44%)}
+    body.theme-blue{--bg:#06111f;--panel:#0b1b31;--panel2:#102a4a;--text:#e7f2ff;--muted:#9bb7d7;--accent:#2563eb;--accent2:#38bdf8;--line:#1d3b5f;background:radial-gradient(circle at top left,#0e7490,#06111f 44%)}
+    body.theme-green{--bg:#06140d;--panel:#0d2117;--panel2:#123120;--text:#eafff1;--muted:#9bc8aa;--accent:#16a34a;--accent2:#34d399;--line:#1d4a31;background:radial-gradient(circle at top left,#166534,#06140d 44%)}
+    body.theme-orange{--bg:#170b05;--panel:#241207;--panel2:#361b0a;--text:#fff3e8;--muted:#d9aa85;--accent:#f97316;--accent2:#fbbf24;--line:#5b2a11;background:radial-gradient(circle at top left,#9a3412,#170b05 44%)}
+    .settings-theme-box{margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.03)}
+    .theme-picker-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+    .theme-choice{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.04);cursor:pointer;font-weight:800}
+    .theme-choice input{width:auto;margin:0}
+    .theme-choice:has(input:checked){border-color:var(--accent2);background:linear-gradient(135deg,rgba(124,58,237,.18),rgba(6,182,212,.12))}
+
+
+    .card,.quick-card,.modal-card,.table-wrap,.mobile-drawer,.topbar-pill,.app-shell-card{background:rgba(255,255,255,.04);border-color:var(--line)}
+    body.theme-light .card,body.theme-light .quick-card,body.theme-light .modal-card,body.theme-light .table-wrap,body.theme-light .mobile-drawer,body.theme-light .topbar-pill,body.theme-light .app-shell-card{background:rgba(255,255,255,.82)}
+    .profile-hero{overflow:hidden}
+    .profile-hero-main{align-items:center;gap:16px}
+    .profile-avatar-large{width:96px;height:96px;border-radius:26px;object-fit:cover;border:1px solid var(--line);background:var(--panel2);display:grid;place-items:center;font-size:42px}
+    .profile-avatar-large.placeholder{display:grid;place-items:center}
+    .profile-stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:18px}
+    .profile-actions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:18px 0}
+    .quick-card{display:block;padding:18px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(135deg,rgba(124,58,237,.16),rgba(6,182,212,.10))}
+    body.theme-green .quick-card{background:linear-gradient(135deg,rgba(22,163,74,.18),rgba(52,211,153,.10))}
+    body.theme-orange .quick-card{background:linear-gradient(135deg,rgba(249,115,22,.18),rgba(251,191,36,.10))}
+    body.theme-blue .quick-card{background:linear-gradient(135deg,rgba(37,99,235,.18),rgba(56,189,248,.10))}
+
+
+    .avatar-edit-button{position:relative;border:0;background:transparent;padding:0;cursor:pointer;color:inherit}
+    .avatar-edit-button:hover .profile-avatar-large{filter:brightness(.85)}
+    .avatar-edit-badge{position:absolute;right:-4px;bottom:-4px;width:34px;height:34px;border-radius:999px;background:var(--accent);color:white;display:grid;place-items:center;font-weight:900;border:2px solid var(--panel)}
+    .profile-edit-modal{max-width:520px}
+
+
+    .modal-backdrop.show{background:rgba(0,0,0,.76)!important;backdrop-filter:blur(10px)}
+    .modal-card{background:var(--panel)!important;box-shadow:0 30px 90px rgba(0,0,0,.65)!important}
+    .mobile-drawer.show{background:var(--panel)!important;box-shadow:30px 0 90px rgba(0,0,0,.75)}
+    .mobile-drawer-backdrop.show{background:rgba(0,0,0,.78)!important;backdrop-filter:blur(8px)}
+    .schedule-title-box{min-width:0}
+    .schedule-kicker{font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+    .schedule-title{margin:0;font-size:34px;letter-spacing:-.04em}
+    .schedule-subtitle{margin-top:4px}
+    @media(max-width:650px){
+      .schedule-header{display:block!important;text-align:center}
+      .schedule-title{font-size:34px;line-height:1.05}
+      .schedule-kicker{font-size:15px}
+      .schedule-subtitle{font-size:14px}
+      .calendar-nav{display:grid!important;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+      .calendar-nav .btn{width:100%;padding:14px 8px;text-align:center;justify-content:center}
+      .calendar-month-btn{grid-column:1 / -1}
+      .mobile-drawer{background:linear-gradient(180deg,var(--panel),var(--bg))!important}
+      .profile-edit-modal{background:var(--panel)!important}
+    }
+
+
+    .mobile-notification-backdrop{display:none}
+    .toast-message{line-height:1.35}
+    .toast-actions{display:flex;gap:8px;align-items:center}
+    .toast-actions .toast-secondary{background:rgba(255,255,255,.16);color:white;border:1px solid rgba(255,255,255,.24)}
+    .mobile-notification-icon{display:none}
+    @media(max-width:650px){
+      .mobile-notification-backdrop{position:fixed;inset:0;z-index:248;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);display:none}
+      .mobile-notification-backdrop.show{display:block}
+      .toast-notification.mobile-notification-popup{
+        left:50%!important;right:auto!important;top:50%!important;
+        transform:translate(-50%,-46%) scale(.96);
+        width:min(88vw,360px);max-width:360px;
+        z-index:249;padding:22px 18px 18px;
+        border-radius:28px;text-align:center;
+        background:linear-gradient(160deg,rgba(15,23,42,.98),rgba(30,41,59,.98))!important;
+        border:1px solid rgba(255,255,255,.14);
+        box-shadow:0 30px 90px rgba(0,0,0,.68);
+        opacity:0;display:block;pointer-events:none;
+        transition:.18s ease;
+      }
+      .toast-notification.mobile-notification-popup.show{
+        opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1);
+      }
+      .mobile-notification-icon{display:grid;width:58px;height:58px;margin:0 auto 10px;border-radius:20px;place-items:center;font-size:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 14px 35px rgba(0,0,0,.35)}
+      .mobile-notification-popup .toast-title{font-size:22px;margin:2px 28px 8px;font-weight:950}
+      .mobile-notification-popup .toast-message{font-size:15px;color:rgba(255,255,255,.82);margin:0 auto 14px;max-width:280px}
+      .mobile-notification-popup .toast-x{right:12px;top:12px;width:34px;height:34px;background:rgba(255,255,255,.10)}
+      .mobile-notification-popup .toast-actions{justify-content:center;margin-top:12px}
+      .mobile-notification-popup .toast-actions button{min-height:42px;border-radius:14px;padding:10px 16px}
+    }
+
+
+    .ajax-mini-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);z-index:400;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:12px 18px;font-weight:900;box-shadow:0 18px 55px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:.2s ease;max-width:min(90vw,520px);text-align:center}
+    .ajax-mini-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .ajax-mini-toast.ok{border-color:rgba(34,197,94,.5)}
+    .ajax-mini-toast.err{border-color:rgba(239,68,68,.55)}
+
+
+
+    @media(min-width:651px){
+      .shift{position:relative}
+    }
+
+
+    .edit-actions-hidden{display:none!important}
+
+
+    .ajax-mini-toast{
+      position:fixed!important;
+      left:50%!important;
+      top:50%!important;
+      bottom:auto!important;
+      transform:translate(-50%,-50%) scale(.92)!important;
+      z-index:500!important;
+      background:var(--panel)!important;
+      color:var(--text)!important;
+      border:1px solid var(--line)!important;
+      border-radius:22px!important;
+      padding:18px 24px!important;
+      font-weight:950!important;
+      box-shadow:0 30px 90px rgba(0,0,0,.58)!important;
+      opacity:0!important;
+      pointer-events:none!important;
+      transition:.18s ease!important;
+      max-width:min(88vw,480px)!important;
+      text-align:center!important;
+    }
+    .ajax-mini-toast.show{opacity:1!important;transform:translate(-50%,-50%) scale(1)!important}
+    .ajax-mini-toast.ok{border-color:rgba(34,197,94,.55)!important}
+    .ajax-mini-toast.err{border-color:rgba(239,68,68,.65)!important}
+    .calendar-edit-enabled .month-date{cursor:pointer}
+    .calendar-edit-enabled .month-cell{outline:1px solid rgba(6,182,212,.12)}
+
+
+    .shift.compact-shift{animation:shiftPopIn .18s ease}
+    @keyframes shiftPopIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+
+    .permission-list-row{cursor:pointer}
+    .permission-list-row:hover{background:rgba(124,58,237,.12)}
+    .permission-dossier{max-width:880px;max-height:88vh;overflow:auto}
+    .permission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:14px}
+    .permission-grid .permission-row{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:16px;padding:10px}
+    @media(max-width:650px){
+      .permissions-list-table th:nth-child(3),.permissions-list-table td:nth-child(3),
+      .permissions-list-table th:nth-child(4),.permissions-list-table td:nth-child(4){display:none}
+      .permission-dossier{width:96vw;max-height:86vh;padding:14px}
+      .permission-grid{grid-template-columns:1fr}
+    }
+
+
+    .payroll-live-flash{animation:payrollLiveFlash .45s ease}
+    @keyframes payrollLiveFlash{0%{filter:brightness(1.8);transform:scale(1.03)}100%{filter:none;transform:scale(1)}}
+
+
+    .skeleton-card{position:relative;overflow:hidden;color:transparent!important;background:rgba(148,163,184,.12)!important;border-color:rgba(148,163,184,.18)!important}
+    .skeleton-card *{visibility:hidden}
+    .skeleton-card::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);transform:translateX(-100%);animation:skeletonShimmer 1.15s infinite}
+    @keyframes skeletonShimmer{100%{transform:translateX(100%)}}
+    @media(max-width:650px){}
+.beta-badge{font-style:normal;font-size:11px;padding:3px 7px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;vertical-align:middle;margin-left:6px;letter-spacing:.04em}.changelog-card ul{margin:14px 0 0;padding-left:20px}.changelog-card li{margin:8px 0;color:var(--muted)}
+
+    .tab.has-items{border-color:rgba(34,197,94,.55);box-shadow:0 0 0 1px rgba(34,197,94,.18),0 12px 34px rgba(34,197,94,.10)}
+    .tab.active.has-items{box-shadow:0 0 0 1px rgba(6,182,212,.35),0 16px 40px rgba(6,182,212,.18)}
+    .ticket-status-flash{animation:ticketStatusFlash .65s ease}
+    @keyframes ticketStatusFlash{0%{filter:brightness(1.9);transform:scale(1.05)}100%{filter:none;transform:none}}
+
+
+    .ticket-list-row{cursor:pointer;transition:background .14s ease, transform .14s ease}
+    .ticket-list-row:hover{background:rgba(124,58,237,.12)}
+    .ticket-list-row:active{transform:scale(.995)}
+    .ticket-dossier{max-width:940px;max-height:88vh;overflow:auto}
+    .ticket-dossier-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+    .ticket-timeline{display:grid;gap:8px;color:var(--muted)}
+    .tab.has-items{border-color:rgba(34,197,94,.55);box-shadow:0 0 0 1px rgba(34,197,94,.18),0 12px 34px rgba(34,197,94,.10)}
+    .tab.active.has-items{box-shadow:0 0 0 1px rgba(6,182,212,.35),0 16px 40px rgba(6,182,212,.18)}
+    .ticket-status-flash{animation:ticketStatusFlash .65s ease}
+    @keyframes ticketStatusFlash{0%{filter:brightness(1.9);transform:scale(1.05)}100%{filter:none;transform:none}}
+    @media(max-width:760px){
+      .ticket-list-table th:nth-child(3),.ticket-list-table td:nth-child(3),
+      .ticket-list-table th:nth-child(5),.ticket-list-table td:nth-child(5){display:none}
+      .ticket-dossier{width:96vw;max-height:86vh;padding:14px}
+    }
+
+
+    .ticket-status-control-card .row{gap:10px}
+    .ticket-inline-status-form{min-width:180px;flex:1}
+    .ticket-status-select{height:42px;padding:8px 12px}
+    .ticket-dossier .card strong{word-break:break-word}
+
+
+    .beta-badge{font-style:normal;font-size:11px;padding:3px 7px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;vertical-align:middle;margin-left:6px;letter-spacing:.04em}
+    .changelog-card ul{margin:14px 0 0;padding-left:20px}.changelog-card li{margin:8px 0;color:var(--muted)}
+    .build-update-card{max-width:620px}
+
+
+    .shift.absence-shift{border-style:solid;font-weight:900}
+    .shift.absence-shift.leave{background:linear-gradient(135deg,rgba(34,197,94,.26),rgba(6,182,212,.16));border-color:rgba(34,197,94,.48)}
+    .shift.absence-shift.sick{background:linear-gradient(135deg,rgba(239,68,68,.24),rgba(251,146,60,.14));border-color:rgba(239,68,68,.48)}
+
+
+    /* Calendar month view: keep cells compact; all details live in the day pop-out. */
+    .month-cell.holiday{background:linear-gradient(180deg,rgba(127,29,29,.54),rgba(14,22,40,.96));border-color:rgba(248,113,113,.8)}
+    .month-cell.today-cell{box-shadow:0 0 0 2px rgba(250,204,21,.75),0 0 34px rgba(250,204,21,.28);filter:brightness(1.12)}
+    .holiday-detail-badge{margin-top:10px;background:rgba(239,68,68,.22)!important;color:#fecaca!important}
+    .calendar-nav,.schedule-nav,.schedule-header-actions{align-items:end}
+    .calendar-top-actions,.calendar-header-actions,.schedule-top-actions{align-self:end;margin-top:auto}
+
+    html,body{max-width:100%;overflow-x:hidden}
+    .layout{width:100%;max-width:100vw;overflow-x:hidden}
+    .main{max-width:100%;overflow-x:hidden}
+    .weekday-row,.month-calendar{width:100%;max-width:100%;box-sizing:border-box}
+    .weekday-row{grid-template-columns:repeat(7,minmax(0,1fr))!important}
+    .month-calendar{grid-template-columns:repeat(7,minmax(0,1fr))!important;align-items:start}
+    .month-cell{min-width:0;min-height:150px;max-height:260px;overflow:hidden}
+    .month-cell .shift.compact-shift{display:block;width:100%;min-height:0!important;height:auto!important;padding:8px 10px!important;margin:7px 0!important;line-height:1.15!important;overflow:hidden}
+    .month-cell .shift.compact-shift strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+    .month-cell .shift.compact-shift *:not(strong){display:none!important}
+    .month-cell .absence-shift.leave,.month-cell .absence-shift.sick{min-height:0!important;box-shadow:none!important}
+    .shift.compact-shift strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .shift.compact-shift{min-height:auto;padding:10px 12px}
+
+    .day-info-trigger{position:relative;z-index:50;pointer-events:auto;cursor:pointer}
+    .day-info-trigger.month-date{border:0;background:transparent;color:inherit;font:inherit;font-weight:900;padding:0;text-align:left}
+    .calendar-day-info-backdrop{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.68);align-items:center;justify-content:center;padding:18px}
+    .calendar-day-info-backdrop.show{display:flex!important}
+    .calendar-day-info-card{width:min(760px,96vw);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.55)}
+    .calendar-day-info-summary{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+    .calendar-day-info-body{display:grid;gap:12px;margin-top:16px}
+    .calendar-day-info-item.leave{border-color:rgba(34,197,94,.5)}
+    .calendar-day-info-item.sick{border-color:rgba(239,68,68,.5)}
+
+    .calendar-day-info-card .sheet-handle{display:none}
+    @media(max-width:650px){
+      .schedule-header{position:sticky;top:0;z-index:60;margin:0 -4px 12px!important;padding:12px;border:1px solid var(--line);border-radius:22px;background:rgba(14,22,40,.92);backdrop-filter:blur(16px)}
+      .schedule-title{font-size:23px!important}
+      .schedule-subtitle{font-size:12px}
+      .calendar-nav{width:100%;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+      .calendar-nav .btn{width:100%;min-height:42px;padding:10px 8px;border-radius:15px;font-size:13px}
+      .schedule-top-controls{margin-bottom:12px!important}
+      .month-calendar{gap:10px!important}
+      .month-cell{min-height:88px!important;max-height:none!important;border-radius:22px!important;padding:12px!important;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.035))!important}
+      .month-cell.today-cell{box-shadow:0 0 0 2px rgba(250,204,21,.88),0 14px 40px rgba(250,204,21,.16)!important}
+      .month-date{font-size:18px!important}
+      .shift-count{font-size:12px;padding:5px 8px}
+      .month-cell .shift.compact-shift{border-radius:16px!important;padding:10px 11px!important;margin:8px 0!important}
+      .month-cell .shift.compact-shift strong{font-size:14px!important}
+      .month-cell .shift.compact-shift .mobile-shift-time{display:block!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#b9c7e6;font-size:12px;margin-top:4px}
+      .calendar-day-info-backdrop{align-items:flex-end!important;justify-content:center!important;padding:0!important;background:rgba(0,0,0,.58)!important;z-index:260!important}
+      .calendar-day-info-backdrop.show{display:flex!important}
+      .calendar-day-info-card{width:100%!important;max-height:84vh!important;border-radius:26px 26px 0 0!important;border-left:0!important;border-right:0!important;border-bottom:0!important;padding:14px 16px calc(18px + env(safe-area-inset-bottom))!important;box-shadow:0 -20px 70px rgba(0,0,0,.52)!important;transform:translateY(0)}
+      .calendar-day-info-card .sheet-handle{display:block}
+      .calendar-day-info-summary{gap:7px;margin-top:12px}
+      .calendar-day-info-summary .badge{font-size:12px;padding:5px 8px}
+      .calendar-day-info-body{gap:10px;margin-top:12px}
+      .calendar-day-info-item{padding:12px!important;border-radius:16px!important}
+    }
+    body.modal-open{overflow:hidden}
+    @media(max-width:900px){
+      .month-calendar{grid-template-columns:1fr!important}
+      .weekday-row{display:none!important}
+      .main{padding-left:16px!important;padding-right:16px!important}
+    }
+
+
+
+    /* Mobile app shell overhaul: phone screens should feel like a native app, not a squeezed desktop page. */
+    @media(max-width:650px){
+      :root{--mobile-tabbar-h:76px}
+      html{height:100%;background:var(--bg)}
+      body{min-height:100dvh;padding:0 0 calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom))!important;background:linear-gradient(180deg,#07101f 0%,var(--bg) 42%)!important;overflow-x:hidden;overscroll-behavior-y:none}
+      body.theme-light{background:linear-gradient(180deg,#eaf0ff 0%,#f7f8fc 45%)!important}
+      .layout{display:block!important;min-height:100dvh;width:100%;overflow:visible!important}
+      .sidebar{display:none!important}
+      .main{padding:10px 12px calc(var(--mobile-tabbar-h) + 18px + env(safe-area-inset-bottom))!important;min-height:100dvh;overflow:visible!important}
+      .created-by-footer{display:none}
+
+      .mobile-topbar{display:flex!important;position:sticky;top:calc(6px + env(safe-area-inset-top));z-index:120;margin:0 0 12px!important;padding:10px 12px!important;border-radius:22px!important;background:rgba(14,22,40,.76)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:0 14px 42px rgba(0,0,0,.28);backdrop-filter:blur(18px) saturate(1.35)}
+      body.theme-light .mobile-topbar{background:rgba(255,255,255,.78)!important;border-color:rgba(15,23,42,.10)!important;box-shadow:0 14px 34px rgba(15,23,42,.10)}
+      .mobile-topbar strong{font-size:17px!important;letter-spacing:-.02em}
+      .mobile-topbar span{font-size:12px!important;max-width:52vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .mobile-drawer-toggle,.mobile-quick-link{width:42px!important;height:42px!important;border-radius:16px!important;background:rgba(255,255,255,.08)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:none!important}
+      body.theme-light .mobile-drawer-toggle,body.theme-light .mobile-quick-link{background:#eef2ff!important;border-color:#d9e0ef!important;color:#0f172a!important}
+
+      .card,.quick-card,.table-wrap,.app-shell-card{border-radius:24px!important;background:rgba(255,255,255,.055)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:0 12px 34px rgba(0,0,0,.18)!important;padding:16px!important}
+      body.theme-light .card,body.theme-light .quick-card,body.theme-light .table-wrap,body.theme-light .app-shell-card{background:rgba(255,255,255,.86)!important;border-color:rgba(15,23,42,.10)!important;box-shadow:0 12px 30px rgba(15,23,42,.08)!important}
+      .card:hover{border-color:rgba(255,255,255,.14)!important}
+      h1{font-size:27px!important;line-height:1.05;letter-spacing:-.045em;margin:0 0 6px!important}
+      h2{font-size:20px!important;line-height:1.15;letter-spacing:-.03em}
+      .muted{line-height:1.35}
+      .grid{display:grid!important;grid-template-columns:1fr!important;gap:12px!important}
+      .quick-grid{grid-template-columns:1fr!important;gap:12px!important}
+      .quick-card{min-height:86px;display:flex!important;flex-direction:column;justify-content:center}
+      .stat{font-size:30px!important}
+      .badge{padding:7px 10px!important;border-radius:999px!important;font-size:12px!important}
+
+      input,select,textarea{min-height:48px!important;border-radius:17px!important;background:rgba(5,10,20,.64)!important;border-color:rgba(255,255,255,.12)!important;font-size:16px!important}
+      body.theme-light input,body.theme-light select,body.theme-light textarea{background:#f8fafc!important;border-color:#cbd5e1!important}
+      .btn{min-height:44px!important;border-radius:16px!important;padding:10px 14px!important;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 10px 26px rgba(6,182,212,.12)}
+      .btn.small{min-height:36px!important;border-radius:13px!important}
+      .row{gap:9px!important}
+      .form-grid{grid-template-columns:1fr!important;gap:10px!important}
+
+      .tabs{display:flex!important;gap:9px!important;overflow-x:auto;flex-wrap:nowrap!important;margin:4px -12px 14px!important;padding:0 12px 4px!important;scrollbar-width:none}
+      .tabs::-webkit-scrollbar{display:none}
+      .tab{flex:0 0 auto;padding:10px 14px!important;border-radius:999px!important;background:rgba(255,255,255,.045)}
+      .tab.active{box-shadow:0 10px 28px rgba(124,58,237,.16)}
+
+      .table-wrap{overflow:visible!important;padding:10px!important;background:transparent!important;border:0!important;box-shadow:none!important}
+      table{min-width:0!important;width:100%!important;border-collapse:separate!important;border-spacing:0 10px!important}
+      table thead,table th{display:none!important}
+      table tbody,table tr,table td{display:block!important;width:100%!important}
+      table tr{background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.10);border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:0 10px 28px rgba(0,0,0,.14);overflow:hidden}
+      body.theme-light table tr{background:rgba(255,255,255,.9);border-color:rgba(15,23,42,.10);box-shadow:0 8px 24px rgba(15,23,42,.08)}
+      table td{border:0!important;padding:5px 2px!important;line-height:1.35}
+      table td .row{align-items:center}
+      table tr:has(td[colspan]){padding:16px;text-align:center;color:var(--muted)}
+
+      .app-tabbar{position:fixed!important;left:10px!important;right:10px!important;bottom:calc(8px + env(safe-area-inset-bottom))!important;z-index:180!important;display:grid!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-template-columns:none!important;gap:6px;padding:8px!important;min-height:var(--mobile-tabbar-h);border-radius:26px;background:rgba(14,22,40,.86)!important;border:1px solid rgba(255,255,255,.11)!important;box-shadow:0 18px 60px rgba(0,0,0,.42);backdrop-filter:blur(20px) saturate(1.25)}
+      body.theme-light .app-tabbar{background:rgba(255,255,255,.9)!important;border-color:rgba(15,23,42,.10)!important;box-shadow:0 18px 45px rgba(15,23,42,.14)}
+      .app-tabbar a,.app-tabbar button{position:relative;border:0;background:transparent;color:var(--muted);min-width:0;padding:7px 4px;border-radius:19px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+      .app-tabbar a strong,.app-tabbar button strong{font-size:20px;line-height:20px}
+      .app-tabbar a.active{background:linear-gradient(135deg,rgba(124,58,237,.30),rgba(6,182,212,.18));color:white}
+      body.theme-light .app-tabbar a.active{color:#1e1b4b;background:linear-gradient(135deg,#ede9fe,#cffafe)}
+      .mobile-count{right:10px;top:5px;margin:0!important;position:absolute!important;min-width:18px;height:18px;display:grid;place-items:center;border-radius:999px;background:#ef4444;color:white;font-size:10px;font-weight:900;padding:0 5px}
+
+      .mobile-drawer{width:min(88vw,360px)!important;padding:calc(16px + env(safe-area-inset-top)) 16px 20px!important;border-radius:0 28px 28px 0;background:linear-gradient(180deg,rgba(14,22,40,.98),rgba(7,11,20,.98))!important;box-shadow:34px 0 90px rgba(0,0,0,.58)!important}
+      body.theme-light .mobile-drawer{background:linear-gradient(180deg,#fff,#eef2ff)!important}
+      .mobile-drawer .nav a{border-radius:18px!important;padding:13px 14px!important;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
+      body.theme-light .mobile-drawer .nav a{background:rgba(15,23,42,.035);border-color:rgba(15,23,42,.08)}
+      .mobile-drawer .user-mini{border-radius:22px!important;background:rgba(255,255,255,.05)!important}
+
+      .modal-backdrop.show,.calendar-day-info-backdrop.show{backdrop-filter:blur(8px)}
+      .modal-card,.calendar-day-info-card,.ticket-dossier,.payroll-detail-card,.report-detail-card,.payroll-dossier-card{width:100%!important;max-height:86dvh!important;border-radius:28px 28px 0 0!important;padding:16px 16px calc(18px + env(safe-area-inset-bottom))!important}
+      .toast-notification{left:12px!important;right:12px!important;top:calc(12px + env(safe-area-inset-top))!important;max-width:none!important;border-radius:22px!important}
+
+      .schedule-header{top:calc(68px + env(safe-area-inset-top))!important;border-radius:24px!important}
+      .month-calendar{grid-template-columns:1fr!important;gap:10px!important}
+      .weekday-row{display:none!important}
+      .month-cell{border-radius:24px!important;min-height:92px!important;padding:13px!important;box-shadow:0 10px 28px rgba(0,0,0,.14)}
+      .month-cell.empty{display:none!important}
+      .month-date{font-size:18px!important;margin-bottom:8px!important}
+      .month-cell .shift.compact-shift{border-radius:17px!important;margin:7px 0!important;background:linear-gradient(135deg,rgba(124,58,237,.26),rgba(6,182,212,.16))!important}
+      .month-cell .shift.compact-shift strong{font-size:15px!important}
+      .month-cell .shift.compact-shift .mobile-shift-time{display:block!important}
+
+      .login-wrap{min-height:100dvh;padding:18px;background:linear-gradient(180deg,#101a31,#070b14)}
+      .login .card{border-radius:30px!important;padding:22px!important}
+    }
+
+    /* Mobile polish: one menu entry point, centered app title, gesture-first drawer/sheets. */
+    @media(max-width:650px){
+      .mobile-topbar{justify-content:center!important;text-align:center!important}
+      .mobile-app-title{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:38px}
+      .mobile-app-title strong{display:flex!important;align-items:center;justify-content:center;gap:7px}
+      .mobile-app-title .beta-badge{font-size:9px!important;padding:2px 6px!important;margin-left:0!important;transform:translateY(-1px)}
+      .mobile-top-actions,.mobile-topbar .mobile-drawer-toggle{display:none!important}
+      .drawer-close-button{display:none!important}
+      .mobile-drawer-head{padding-left:14px!important;padding-right:6px!important}
+      .drawer-edge-handle{position:absolute;right:7px;top:50%;width:4px;height:46px;border-radius:999px;background:rgba(255,255,255,.18);transform:translateY(-50%)}
+      body.theme-light .drawer-edge-handle{background:rgba(15,23,42,.18)}
+      .mobile-drawer.dragging{transition:none!important}
+      .calendar-day-info-card .row.space > button[onclick*="hideCalendarDayInfo"]{display:none!important}
+      .calendar-day-info-card.dragging{transition:none!important}
+      .calendar-day-info-card{touch-action:pan-y}
+      .sheet-handle{width:58px!important;height:6px!important;margin-bottom:16px!important;background:rgba(255,255,255,.32)!important}
+      body.theme-light .sheet-handle{background:rgba(15,23,42,.22)!important}
+    }
+
+
+
+/* ShiftDesk calendar toolbar hard override: supports both old and new filter markup. */
+.schedule-page .row.calendar-nav,
+.schedule-page .calendar-nav{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:10px!important;
+  flex-wrap:nowrap!important;
+}
+.schedule-page .calendar-nav a,
+.schedule-page .calendar-nav .btn,
+.schedule-page .schedule-top-controls .btn,
+.schedule-page .calendar-toolbar-btn,
+.schedule-page .calendar-nav-btn,
+.schedule-page .calendar-filter-trigger,
+.schedule-page .calendar-filter-button,
+.schedule-page .sd-calendar-filter-btn,
+.schedule-page #editToggleBtn{
+  height:44px!important;
+  min-height:44px!important;
+  max-height:44px!important;
+  min-width:108px!important;
+  padding:0 16px!important;
+  border-radius:16px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  box-sizing:border-box!important;
+  vertical-align:middle!important;
+  font-size:14px!important;
+}
+.schedule-page .calendar-lock-pill,
+.schedule-page #editStatusBadge{
+  height:44px!important;
+  min-height:44px!important;
+  max-height:44px!important;
+  padding:0 16px!important;
+  border-radius:16px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  line-height:1!important;
+  box-sizing:border-box!important;
+  vertical-align:middle!important;
+}
+/* Old ugly filter button: hide dynamic view label text like “Седмица/Месец”. */
+.schedule-page .calendar-filter-popover-wrap .calendar-filter-trigger,
+.schedule-page .calendar-filter-control .calendar-filter-button{
+  font-size:0!important;
+  min-width:126px!important;
+}
+.schedule-page .calendar-filter-popover-wrap .calendar-filter-trigger::before,
+.schedule-page .calendar-filter-control .calendar-filter-button::before{
+  content:'🔎 Филтри'!important;
+  font-size:14px!important;
+  line-height:1!important;
+}
+.schedule-page .calendar-filter-popover-wrap .calendar-filter-trigger::after,
+.schedule-page .calendar-filter-control .calendar-filter-button::after{
+  content:'⌄'!important;
+  font-size:15px!important;
+  line-height:1!important;
+  opacity:.85!important;
+}
+.schedule-page .calendar-filter-trigger .calendar-filter-chevron,
+.schedule-page .calendar-filter-button .calendar-filter-chevron{display:none!important;}
+.schedule-page .calendar-filter-popover-wrap,
+.schedule-page .calendar-filter-control,
+.schedule-page .sd-calendar-filter{
+  position:relative!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  z-index:520!important;
+}
+.schedule-page .calendar-filter-popover,
+.schedule-page .calendar-filter-menu,
+.schedule-page .sd-calendar-filter-menu{
+  position:absolute!important;
+  top:calc(100% + 10px)!important;
+  left:0!important;
+  width:min(720px,88vw)!important;
+  padding:16px!important;
+  border-radius:22px!important;
+  background:var(--panel)!important;
+  border:1px solid var(--line)!important;
+  box-shadow:0 30px 90px rgba(0,0,0,.58)!important;
+  z-index:700!important;
+}
+@media(max-width:650px){
+  .schedule-page .calendar-nav{width:100%!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;margin-top:14px!important;gap:8px!important;}
+  .schedule-page .calendar-nav a,.schedule-page .calendar-nav .btn{width:100%!important;min-width:0!important;height:42px!important;min-height:42px!important;max-height:42px!important;padding:0 8px!important;font-size:13px!important;border-radius:14px!important;}
+  .schedule-page .schedule-top-controls{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;}
+  .schedule-page .schedule-top-controls .btn,
+  .schedule-page .calendar-lock-pill,
+  .schedule-page .calendar-filter-popover-wrap,
+  .schedule-page .calendar-filter-control,
+  .schedule-page .sd-calendar-filter,
+  .schedule-page .calendar-filter-trigger,
+  .schedule-page .calendar-filter-button,
+  .schedule-page .sd-calendar-filter-btn{width:100%!important;}
+}
+
+</style>
+</head>
+<body class="theme-{{ theme or 'dark' }}">
+{% if current_user %}
+<div class="layout">
+  <div id="mobileDrawerBackdrop" class="mobile-drawer-backdrop" onclick="closeMobileDrawer()"></div>
+  <aside id="mobileDrawer" class="mobile-drawer" aria-hidden="true">
+    <div class="drawer-edge-handle" aria-hidden="true"></div>
+    <div class="row space mobile-drawer-head">
+      <div class="brand">Shift<span>Desk</span> <em class="beta-badge">BETA</em></div>
+      <button class="btn small secondary drawer-close-button" type="button" onclick="closeMobileDrawer()">✕</button>
+    </div>
+    <div class="user-mini">
+      {% if current_user.photo %}
+        <img class="avatar" src="{{ url_for('static', filename='uploads/' ~ current_user.photo) }}" alt="avatar">
+      {% else %}
+        <div class="avatar" style="display:grid;place-items:center;">👤</div>
+      {% endif %}
+      <div>
+        <strong>{{ current_user.first_name or current_user.username }}</strong>
+        <div class="muted" style="font-size:12px;">{{ current_user.position|position_label if current_user.position else current_user.role }}</div>
+      </div>
+    </div>
+    <div class="nav">
+      {% if is_admin_user or can('can_view_dashboard') %}
+        <a href="{{ url_for('dashboard') }}">📊 Dashboard</a>
+      {% endif %}
+      {% if is_admin_user or can('can_view_team') %}
+        <a href="{{ url_for('team') }}">👥 Екип</a>
+      {% endif %}
+      {% if is_admin_user or can('can_view_calendar') %}
+        <a href="{{ url_for('schedule') }}">🗓️ Календар <span class="nav-count module-badge" data-module="schedule" {% if notification_counts.schedule <= 0 %}style="display:none"{% endif %}>{{ notification_counts.schedule }}</span></a>
+      {% endif %}
+      {% if is_admin_user or can('can_create_tickets') or can('can_process_tickets') or can('can_escalate_tickets') %}
+        <a href="{{ url_for('tickets') }}">🎫 Заявки <span class="nav-count module-badge" data-module="tickets" {% if notification_counts.tickets <= 0 %}style="display:none"{% endif %}>{{ notification_counts.tickets }}</span></a>
+      {% endif %}
+      {% if is_admin_user or can('can_view_payroll') or can('can_manage_payroll') %}
+        <a href="{{ url_for('payroll_tools') }}">💼 Payroll <span class="nav-count module-badge" data-module="payroll" {% if notification_counts.payroll <= 0 %}style="display:none"{% endif %}>{{ notification_counts.payroll }}</span></a>
+      {% endif %}
+      {% if is_admin_user or can('can_view_payroll_reports') %}
+        <a href="{{ url_for('payroll_reports') }}">📨 Payroll справки</a>
+      {% endif %}
+      {% if is_admin_user or can('can_manage_users') %}
+        <a href="{{ url_for('users') }}">🔐 Потребители</a>
+      {% endif %}
+      {% if is_admin_user %}
+        <a href="{{ url_for('permissions_admin') }}">🛡️ Права</a>
+        <a href="{{ url_for('permissions_debug') }}">🧪 Debug права</a>
+      {% endif %}
+      {% if current_user.employee_id %}
+        <a href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}">👤 Моят профил</a>
+      {% endif %}
+      <a href="{{ url_for('settings') }}" onclick="closeMobileDrawer()">⚙️ Настройки</a>
+      <a href="{{ url_for('help_page') }}">📘 Помощ</a>
+      <a href="{{ url_for('feedback_reports') }}">🛠️ Сигнали</a>
+      <a href="{{ url_for('logout') }}" class="danger">🚪 Изход</a>
+    </div>
+  </aside>
+
+  <aside class="sidebar">
+    <div class="brand">Shift<span>Desk</span> <em class="beta-badge">BETA</em></div>
+    <div class="user-mini">
+      {% if current_user.photo %}
+        <img class="avatar" src="{{ url_for('static', filename='uploads/' ~ current_user.photo) }}" alt="avatar">
+      {% else %}
+        <div class="avatar" style="display:grid;place-items:center;">👤</div>
+      {% endif %}
+      <div>
+        <strong>{{ current_user.first_name or current_user.username }}</strong>
+        <div class="muted" style="font-size:12px;">{{ current_user.position|position_label if current_user.position else current_user.role }}</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      {% if is_admin_user or can('can_view_dashboard') %}
+        <a href="{{ url_for('dashboard') }}"><span>📊 Dashboard</span></a>
+      {% endif %}
+
+      {% if is_admin_user or can('can_view_team') %}
+        <a href="{{ url_for('team') }}"><span>👥 Екип</span></a>
+      {% endif %}
+
+      {% if is_admin_user or can('can_view_calendar') %}<a href="{{ url_for('schedule') }}"><span>🗓️ Календар</span><span class="nav-count module-badge" data-module="schedule" {% if notification_counts.schedule <= 0 %}style="display:none"{% endif %}>{{ notification_counts.schedule }}</span></a>{% endif %}
+      {% if is_admin_user or can('can_create_tickets') or can('can_process_tickets') or can('can_escalate_tickets') %}
+        <a href="{{ url_for('tickets') }}"><span>🎫 Заявки</span><span class="nav-count module-badge" data-module="tickets" {% if notification_counts.tickets <= 0 %}style="display:none"{% endif %}>{{ notification_counts.tickets }}</span></a>
+      {% endif %}
+
+      {% if is_admin_user or can('can_view_payroll') or can('can_manage_payroll') %}<a href="{{ url_for('payroll_tools') }}"><span>💼 Payroll</span><span class="nav-count module-badge" data-module="payroll" {% if notification_counts.payroll <= 0 %}style="display:none"{% endif %}>{{ notification_counts.payroll }}</span></a>{% endif %}
+      {% if is_admin_user or can('can_view_payroll_reports') %}<a href="{{ url_for('payroll_reports') }}"><span>📨 Payroll справки</span></a>{% endif %}
+
+      {% if is_admin_user or can('can_manage_users') %}
+        <a href="{{ url_for('departments') }}"><span>🏢 Отдели</span></a>
+        <a href="{{ url_for('users') }}"><span>🔐 Потребители</span></a>
+        <a href="{{ url_for('permissions_admin') }}"><span>🛡️ Права</span></a>
+        <a href="{{ url_for('permissions_debug') }}"><span>🧪 Debug права</span></a>
+        <a href="{{ url_for('database') }}"><span>🗄️ База данни</span></a>
+      {% endif %}
+
+      <a href="{{ url_for('help_page') }}"><span>📘 Помощ</span></a>
+      <a href="{{ url_for('feedback_reports') }}"><span>🛠️ Сигнали</span></a>
+
+      {% if current_user.employee_id %}
+        <a href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}"><span>👤 Моят профил</span></a>
+      {% endif %}
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="mobile-topbar">
+      <div class="mobile-app-title">
+        <strong>ShiftDesk <em class="beta-badge">BETA</em></strong>
+        <span>{{ current_user.first_name or current_user.username }}</span>
+      </div>
+    </div>
+    <div class="topbar app-topbar">
+      <div class="topbar-spacer"></div>
+
+      <div class="avatar-wrap">
+        <button class="avatar-button" type="button" onclick="toggleAvatarMenu()">
+          {% if current_user.photo %}
+            <img class="avatar" src="{{ url_for('static', filename='uploads/' ~ current_user.photo) }}" alt="avatar">
+          {% else %}
+            <span class="avatar" style="display:grid;place-items:center;">👤</span>
+          {% endif %}
+          <span class="badge">{{ current_user.username }}</span>
+        </button>
+
+        <div id="avatarMenu" class="avatar-menu">
+          {% if current_user.employee_id %}
+            <a href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}">👤 Моят профил</a>
+          {% endif %}
+          <a href="{{ url_for('settings') }}" onclick="closeMobileDrawer()">⚙️ Настройки</a>
+          <a href="{{ url_for('help_page') }}">📘 Помощ</a>
+          <a href="{{ url_for('feedback_reports') }}">🛠️ Сигнали</a>
+          <form method="POST" action="{{ url_for('set_theme') }}">
+            <input type="hidden" name="theme" value="{% if theme == 'dark' %}light{% else %}dark{% endif %}">
+            <button type="submit">{% if theme == 'dark' %}☀️ Светъл режим{% else %}🌙 Тъмен режим{% endif %}</button>
+          </form>
+          <label class="switch">
+            <input id="soundSwitch" type="checkbox" onchange="toggleSoundSwitch(this)">
+            <span class="slider"></span>
+            <span>Звук</span>
+          </label>
+          <a href="{{ url_for('logout') }}" class="danger">🚪 Изход</a>
+        </div>
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category,message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+    <div class="created-by-footer">Created by <strong>ShiftDesk Studio</strong></div>
+  </main>
+</div>
+
+<nav class="bottom-nav app-tabbar" aria-label="Основна мобилна навигация">
+  {% if is_admin_user or can('can_view_calendar') %}
+    <a class="{% if request.endpoint == 'schedule' %}active{% endif %}" href="{{ url_for('schedule') }}"><strong>🗓️</strong><span class="mobile-count module-badge" data-module="schedule" {% if notification_counts.schedule <= 0 %}style="display:none"{% endif %}>{{ notification_counts.schedule }}</span><span>График</span></a>
+  {% endif %}
+  {% if is_admin_user or can('can_create_tickets') or can('can_process_tickets') or can('can_escalate_tickets') %}
+    <a class="{% if request.endpoint in ['tickets','new_ticket','ticket_detail'] %}active{% endif %}" href="{{ url_for('tickets') }}"><strong>🎫</strong><span class="mobile-count module-badge" data-module="tickets" {% if notification_counts.tickets <= 0 %}style="display:none"{% endif %}>{{ notification_counts.tickets }}</span><span>Заявки</span></a>
+  {% endif %}
+  {% if is_admin_user or can('can_view_team') %}
+    <a class="{% if request.endpoint in ['team','employees'] or (request.endpoint == 'employee_profile' and request.view_args and request.view_args.get('employee_id') != current_user.employee_id) %}active{% endif %}" href="{{ url_for('team') }}"><strong>👥</strong><span>Екип</span></a>
+  {% endif %}
+  {% if current_user.employee_id %}
+    <a class="{% if request.endpoint == 'payroll_me' or (request.endpoint == 'employee_profile' and request.view_args and request.view_args.get('employee_id') == current_user.employee_id) %}active{% endif %}" href="{{ url_for('employee_profile', employee_id=current_user.employee_id) }}"><strong>👤</strong><span>Профил</span></a>
+  {% endif %}
+  <button type="button" onclick="openMobileDrawer()"><strong>☰</strong><span>Меню</span></button>
+</nav>
+
+{% if latest_notification %}
+<div id="latestNotificationBackdrop" class="mobile-notification-backdrop" onclick="closeLatestNotification(event)"></div>
+<div id="latestNotificationToast" class="toast-notification mobile-notification-popup" data-id="{{ latest_notification.id }}" data-link="{{ latest_notification.link or '' }}">
+  <button class="toast-x" type="button" onclick="closeLatestNotification(event)">×</button>
+  <div class="mobile-notification-icon">🔔</div>
+  <div class="toast-title">{{ latest_notification.title }}</div>
+  <div class="toast-message">{{ latest_notification.message }}</div>
+  <div class="toast-actions">
+    {% if latest_notification.link %}
+      <button type="button" onclick="openLatestNotification(event)">Отвори</button>
+    {% endif %}
+    <button class="toast-secondary" type="button" onclick="closeLatestNotification(event)">Затвори</button>
+  </div>
+</div>
+{% endif %}
+
+<div id="ajaxMiniToast" class="ajax-mini-toast"></div>
+
+<audio id="notificationSound" preload="auto">
+  <source src="{{ url_for('static', filename='notification.wav') }}" type="audio/wav">
+</audio>
+{% else %}
+  {% block guest %}{% endblock %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+}
+
+let soundEnabled = localStorage.getItem("shiftdesk_sound_enabled") === "1";
+let lastUnreadCount = Number(localStorage.getItem("shiftdesk_last_unread") || "{{ unread_notifications or 0 }}");
+
+function setSoundButton() {
+  const sw = document.getElementById("soundSwitch");
+  if (sw) sw.checked = soundEnabled;
+}
+
+function toggleSoundSwitch(input){
+  soundEnabled = !!input.checked;
+  localStorage.setItem("shiftdesk_sound_enabled", soundEnabled ? "1" : "0");
+  if(soundEnabled){ enableNotificationSound(); }
+}
+
+async function enableNotificationSound() {
+  soundEnabled = true;
+  localStorage.setItem("shiftdesk_sound_enabled", "1");
+  setSoundButton();
+  const audio = document.getElementById("notificationSound");
+  if (audio) {
+    try { audio.currentTime = 0; await audio.play(); } catch (e) {}
+  }
+  if ("Notification" in window && Notification.permission === "default") {
+    try { await Notification.requestPermission(); } catch (e) {}
+  }
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+}
+
+async function playNotifyFeedback() {
+  if (!soundEnabled) return;
+  const audio = document.getElementById("notificationSound");
+  if (audio) {
+    try { audio.currentTime = 0; await audio.play(); } catch (e) {}
+  }
+  if (navigator.vibrate) navigator.vibrate([160, 60, 160]);
+}
+
+function showAjaxMiniToast(message, ok=true){
+  const el=document.getElementById("ajaxMiniToast");
+  if(!el) return;
+  el.textContent = message || (ok ? "Готово" : "Грешка");
+  el.classList.remove("ok","err","show");
+  el.classList.add(ok ? "ok" : "err");
+  requestAnimationFrame(()=>el.classList.add("show"));
+  clearTimeout(window.__ajaxMiniToastTimer);
+  window.__ajaxMiniToastTimer=setTimeout(()=>el.classList.remove("show"), 2600);
+}
+
+function updateModuleBadges(counts){
+  document.querySelectorAll(".module-badge[data-module]").forEach(el=>{
+    const key = el.dataset.module;
+    const count = Number((counts && counts[key]) || 0);
+    el.textContent = String(count);
+    el.style.display = count > 0 ? "inline-grid" : "none";
+  });
+}
+
+async function pollUnreadNotifications() {
+  {% if current_user %}
+  try {
+    const res = await fetch("{{ url_for('notifications_module_counts_api') }}", { cache: "no-store" });
+    const data = await res.json();
+    if (data.ok) {
+      const count = Number(data.total || 0);
+      updateModuleBadges(data.counts || {});
+      if (count > lastUnreadCount) playNotifyFeedback();
+      lastUnreadCount = count;
+      localStorage.setItem("shiftdesk_last_unread", String(count));
+    }
+  } catch (e) {}
+  {% endif %}
+}
+
+function showLatestNotificationToast(){
+  const toast=document.getElementById("latestNotificationToast");
+  const backdrop=document.getElementById("latestNotificationBackdrop");
+  if(!toast)return;
+
+  // Ако потребителят вече е затворил това известие на този браузър, не го показваме пак
+  // дори преди заявката към сървъра да е приключила.
+  const dismissedId = localStorage.getItem("shiftdesk_dismissed_notification_id");
+  if(dismissedId && dismissedId === String(toast.dataset.id || "")) return;
+
+  toast.classList.add("show");
+  if(backdrop && window.matchMedia("(max-width:650px)").matches) backdrop.classList.add("show");
+  playNotifyFeedback();
+}
+
+async function markNotificationRead(id){
+  if(!id) return;
+  try{
+    await fetch(`/api/notifications/${id}/read`, {
+      method:"POST",
+      credentials:"same-origin",
+      headers:{"X-Requested-With":"fetch"}
+    });
+  }catch(e){}
+}
+
+function hideLatestNotificationPopup(){
+  const toast=document.getElementById("latestNotificationToast");
+  const backdrop=document.getElementById("latestNotificationBackdrop");
+  if(toast) toast.classList.remove("show");
+  if(backdrop) backdrop.classList.remove("show");
+}
+
+function closeLatestNotification(event){
+  if(event) event.stopPropagation();
+  const toast=document.getElementById("latestNotificationToast");
+  if(!toast) return;
+
+  // X / Затвори означава само: скрий pop-out-а на този браузър.
+  // Самото известие остава непрочетено, за да не се пропусне.
+  localStorage.setItem("shiftdesk_dismissed_notification_id", String(toast.dataset.id || ""));
+  hideLatestNotificationPopup();
+}
+
+async function openLatestNotification(event){
+  if(event) event.stopPropagation();
+  const toast=document.getElementById("latestNotificationToast");
+  if(!toast) return;
+  const link=toast.dataset.link;
+  localStorage.setItem("shiftdesk_dismissed_notification_id", String(toast.dataset.id || ""));
+  hideLatestNotificationPopup();
+  await markNotificationRead(toast.dataset.id);
+  await pollUnreadNotifications();
+  if(link) window.location.href=link;
+}
+
+setSoundButton();
+showLatestNotificationToast();
+setInterval(pollUnreadNotifications, 15000);
+
+function openMobileDrawer(){
+  const drawer=document.getElementById("mobileDrawer");
+  const backdrop=document.getElementById("mobileDrawerBackdrop");
+  if(drawer){
+    drawer.classList.add("show");
+    drawer.setAttribute("aria-hidden", "false");
+    drawer.style.transform="";
+  }
+  if(backdrop) backdrop.classList.add("show");
+}
+function closeMobileDrawer(){
+  const drawer=document.getElementById("mobileDrawer");
+  const backdrop=document.getElementById("mobileDrawerBackdrop");
+  if(drawer){
+    drawer.classList.remove("show");
+    drawer.setAttribute("aria-hidden", "true");
+    drawer.style.transform="";
+  }
+  if(backdrop) backdrop.classList.remove("show");
+}
+function setupMobileDrawerSwipe(){
+  const drawer=document.getElementById("mobileDrawer");
+  if(!drawer || drawer.dataset.swipeReady === "1") return;
+  drawer.dataset.swipeReady="1";
+  let startX=0, startY=0, deltaX=0, dragging=false;
+  drawer.addEventListener("touchstart", function(e){
+    if(!drawer.classList.contains("show") || !e.touches || !e.touches.length) return;
+    startX=e.touches[0].clientX;
+    startY=e.touches[0].clientY;
+    deltaX=0; dragging=true;
+    drawer.classList.add("dragging");
+  }, {passive:true});
+  drawer.addEventListener("touchmove", function(e){
+    if(!dragging || !e.touches || !e.touches.length) return;
+    const x=e.touches[0].clientX;
+    const y=e.touches[0].clientY;
+    deltaX=Math.min(0, x-startX);
+    if(Math.abs(deltaX) > Math.abs(y-startY)){
+      drawer.style.transform=`translateX(${deltaX}px)`;
+    }
+  }, {passive:true});
+  drawer.addEventListener("touchend", function(){
+    if(!dragging) return;
+    dragging=false;
+    drawer.classList.remove("dragging");
+    if(deltaX < -70) closeMobileDrawer();
+    else drawer.style.transform="";
+  }, {passive:true});
+}
+setupMobileDrawerSwipe();
+
+function toggleAvatarMenu(){
+  const menu = document.getElementById("avatarMenu");
+  if(menu) menu.classList.toggle("show");
+}
+document.addEventListener("click", function(e){
+  const wrap = document.querySelector(".avatar-wrap");
+  if(wrap && !wrap.contains(e.target)){
+    const menu = document.getElementById("avatarMenu");
+    if(menu) menu.classList.remove("show");
+  }
+});
+
+
+
+// Global pop-out safety: Escape closes open dropdowns and modal backdrops.
+document.addEventListener("keydown", function(event){
+  if(event.key !== "Escape") return;
+  document.querySelectorAll("details[open]").forEach(el => { el.open = false; });
+  document.querySelectorAll(".modal-backdrop.show").forEach(el => el.classList.remove("show"));
+  document.querySelectorAll(".avatar-menu.show").forEach(el => el.classList.remove("show"));
+});
+
+let deferredInstallPrompt = null;
+function setAppStatus(message){const el=document.getElementById("appStatus"); if(el) el.textContent=message||"";}
+window.addEventListener("beforeinstallprompt", e=>{
+  e.preventDefault(); deferredInstallPrompt=e;
+  const btn=document.getElementById("installAppBtn");
+  if(btn) btn.style.display="block";
+  setAppStatus("Можеш да инсталираш приложението от бутона.");
+});
+async function installApp(){
+  if(!deferredInstallPrompt){
+    setAppStatus("На iPhone: Share → Add to Home Screen. Ако вече е инсталирано, бутонът няма да се показва.");
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt=null;
+  const btn=document.getElementById("installAppBtn");
+  if(btn) btn.style.display="none";
+}
+function urlBase64ToUint8Array(base64String){
+  const padding="=".repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,"+").replace(/_/g,"/");
+  const raw=window.atob(base64);
+  const out=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;++i) out[i]=raw.charCodeAt(i);
+  return out;
+}
+async function enablePushNotifications(){
+  try{
+    setAppStatus("Проверявам push поддръжката...");
+
+    if (!("serviceWorker" in navigator)){
+      setAppStatus("Service Worker не се поддържа в този браузър.");
+      return;
+    }
+
+    if (!("PushManager" in window)){
+      setAppStatus("Този браузър не поддържа Web Push. На iPhone отвори от Home Screen и Safari/iOS 16.4+.");
+      return;
+    }
+
+    if (!window.isSecureContext){
+      setAppStatus("Push изисква HTTPS. Ползвай Render линка, не локален IP.");
+      return;
+    }
+
+    const keyData=await (await fetch("{{ url_for('push_public_key') }}",{cache:"no-store"})).json();
+    if(!keyData.configured || !keyData.publicKey){
+      setAppStatus("Push не е настроен: липсват VAPID ключове в Render Environment.");
+      return;
+    }
+
+    const permission=await Notification.requestPermission();
+    if(permission!=="granted"){
+      setAppStatus("Push известията не са разрешени от телефона/браузъра.");
+      return;
+    }
+
+    const registration=await navigator.serviceWorker.ready;
+    let sub = await registration.pushManager.getSubscription();
+
+    if(!sub){
+      sub=await registration.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(keyData.publicKey)
+      });
+    }
+
+    const result=await (await fetch("{{ url_for('push_subscribe') }}",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(sub)
+    })).json();
+
+    if(!result.ok){
+      setAppStatus("Грешка при записване на push subscription: " + (result.error || ""));
+      return;
+    }
+
+    const status=await (await fetch("{{ url_for('push_status') }}",{cache:"no-store"})).json();
+    setAppStatus(`Push е включен. Записани устройства: ${status.subscription_count}.`);
+
+  }catch(e){
+    setAppStatus("Push грешка: " + e.message);
+  }
+}
+async function sendTestPush(){
+  try{
+    const result=await (await fetch("{{ url_for('push_test') }}",{method:"POST"})).json();
+    if(!result.ok){
+      setAppStatus("Тестът не мина: " + (result.error || ""));
+      return;
+    }
+    setAppStatus(result.sent ? "Push тестът е изпратен към устройството." : "Тестът създаде in-app известие, но няма активен push subscription.");
+  }catch(e){setAppStatus("Грешка при тест push: " + e.message);}
+}
+
+{% block scripts %}{% endblock %}
+
+document.addEventListener("submit", async function(event){
+  const form = event.target;
+  if(!form || form.tagName !== "FORM" || form.dataset.ajax !== "true") return;
+
+  event.preventDefault();
+  const btn = form.querySelector("button[type='submit']");
+  const oldText = btn ? btn.textContent : "";
+  if(btn){ btn.disabled = true; btn.textContent = form.dataset.loadingText || "Записвам..."; }
+
+  try{
+    const res = await fetch(form.action || window.location.href, {
+      method: (form.method || "POST").toUpperCase(),
+      headers: {"X-Requested-With":"fetch","Accept":"application/json"},
+      body: new FormData(form)
+    });
+    const data = await res.clone().json().catch(async ()=>{
+      let text = "";
+      try { text = await res.text(); } catch(e) {}
+      return {ok:res.ok, message:res.ok ? "Готово" : (text ? "Сървърът върна HTML/redirect вместо JSON." : "Грешка")};
+    });
+    showAjaxMiniToast(data.message || (data.ok ? "Готово" : "Грешка"), !!data.ok);
+    if(data.ok && form.dataset.reset === "true") form.reset();
+    if(data.ok && form.dataset.closeModal){
+      const modal=document.querySelector(form.dataset.closeModal);
+      if(modal) modal.classList.remove("show");
+    }
+    if(data.redirect && form.dataset.followRedirect === "true"){
+      setTimeout(()=>{ window.location.href = data.redirect; }, 450);
+    }
+  }catch(e){
+    showAjaxMiniToast("Грешка: " + e.message, false);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = oldText; }
+  }
+});
+
+</script>
+
+{% if show_build_popup %}
+<div id="buildUpdateModal" class="modal-backdrop show build-update-modal">
+  <div class="modal-card build-update-card" onclick="event.stopPropagation()">
+    <div class="row space">
+      <div>
+        <span class="badge">BETA</span>
+        <h2 style="margin:12px 0 4px;">🚀 ShiftDesk {{ app_version }}</h2>
+        <div class="muted">Build {{ app_build }}</div>
+      </div>
+      <button class="btn small secondary" type="button" onclick="ackBuildUpdate(false)">✕</button>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <strong>Има нова версия.</strong>
+      <ul style="margin-bottom:0;">
+        <li>Подготовка за Render + PostgreSQL</li>
+        <li>Нов личен payroll екран в профила</li>
+        <li>Mobile app UI с bottom navigation и swipe gestures</li>
+        <li>Изчистени permissions за календар, тикети и payroll</li>
+        <li>Заключване на календар при обработена payroll справка</li>
+      </ul>
+    </div>
+    <div class="row" style="margin-top:16px;">
+      <button class="btn" type="button" onclick="ackBuildUpdate(false)">Разбрах</button>
+      <button class="btn secondary" type="button" onclick="ackBuildUpdate(true)">Виж промените</button>
+    </div>
+  </div>
+</div>
+<script>
+async function ackBuildUpdate(goChangelog){
+  try{
+    await fetch("{{ url_for('mark_build_seen') }}", {
+      method:"POST",
+      headers:{"X-Requested-With":"fetch","Accept":"application/json"},
+      credentials:"same-origin"
+    });
+  }catch(e){}
+  const modal=document.getElementById("buildUpdateModal");
+  if(modal) modal.classList.remove("show");
+  if(goChangelog) window.location.href="{{ url_for('changelog') }}";
+}
+</script>
+{% endif %}
+
+</body>
+</html>

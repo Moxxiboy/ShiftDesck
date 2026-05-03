@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% set page_title = "Настройки" %}
+{% set title = "Настройки" %}
+
+{% block content %}
+<div class="card app-shell-card" style="margin-bottom:18px;">
+  <h3 style="margin-top:0;">📱 ShiftDesk като приложение</h3>
+  <div class="muted">Инсталирай ShiftDesk на телефона за по-бърз достъп и app усещане.</div>
+  <div class="row" style="margin-top:14px;">
+    <button id="installAppBtn" class="btn install-button" type="button" onclick="installApp()">Инсталирай app</button>
+    <button class="btn secondary" type="button" onclick="enablePushNotifications()">Включи push</button>
+    {% if is_admin_user %}<button class="btn secondary" type="button" onclick="sendTestPush()">Тест push</button>{% endif %}
+  </div>
+  <div id="appStatus" class="app-status"></div>
+  <div class="muted" style="font-size:13px;margin-top:8px;">iPhone: отвори сайта в Safari → Share → Add to Home Screen.</div>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));">
+  <div class="card">
+    <h2 style="margin-top:0;">🎨 Тема</h2>
+    <div class="muted" style="margin-bottom:12px;">Клик върху тема я сменя веднага и я пази за твоя акаунт.</div>
+    <div class="theme-picker-grid" id="themePicker">
+      {% set themes = [
+        ('dark','🌑 Dark'),
+        ('light','🌕 Light'),
+        ('purple','🟣 Purple neon'),
+        ('blue','🔵 Blue clean'),
+        ('green','🟢 Green'),
+        ('orange','🟠 Orange')
+      ] %}
+      {% for key,label in themes %}
+      <label class="theme-choice">
+        <input type="radio" name="theme" value="{{ key }}" {% if theme == key %}checked{% endif %}>
+        <span>{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;">🔐 Смяна на парола</h2>
+    <form method="POST" data-ajax="true">
+      <input type="hidden" name="action" value="password">
+      <label>Текуща парола</label>
+      <input type="password" name="current_password" required>
+      <label>Нова парола</label>
+      <input type="password" name="new_password" required minlength="6">
+      <label>Повтори нова парола</label>
+      <input type="password" name="confirm_password" required minlength="6">
+      <button class="btn" style="margin-top:16px;" type="submit">Смени парола</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+function applyThemeClass(theme){
+  document.body.className = document.body.className.replace(/\btheme-\w+\b/g, "").trim();
+  document.body.classList.add("theme-" + theme);
+}
+
+document.querySelectorAll("#themePicker input[name='theme']").forEach(input=>{
+  input.addEventListener("change", async function(){
+    const theme=this.value;
+    applyThemeClass(theme);
+
+    const fd=new FormData();
+    fd.append("theme", theme);
+
+    try{
+      const res=await fetch("{{ url_for('settings_theme_update') }}", {
+        method:"POST",
+        headers:{"X-Requested-With":"fetch","Accept":"application/json"},
+        body:fd
+      });
+      const data=await res.json();
+      showAjaxMiniToast(data.message || (data.ok ? "Темата е сменена." : "Грешка"), !!data.ok);
+    }catch(e){
+      showAjaxMiniToast("Грешка: "+e.message, false);
+    }
+  });
+});
+{% endblock %}

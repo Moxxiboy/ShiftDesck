@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% set page_title = "Екип" %}
+{% set title = "Екип" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">Служители и достъп</h2>
+    <div class="muted">Екип, статус, системен достъп и фирмена йерархия.</div>
+  </div>
+  {% if is_admin_user or can('can_manage_users') %}
+    <a class="btn" href="{{ url_for('employee_add') }}">+ Нов служител</a>
+  {% endif %}
+</div>
+
+<div class="tabs">
+  <a class="tab {% if status != 'inactive' %}active{% endif %}" href="{{ url_for('team') }}">Активни · {{ active_count }}</a>
+  <a class="tab {% if status == 'inactive' %}active{% endif %}" href="{{ url_for('team', status='inactive') }}">Неактивни · {{ inactive_count }}</a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="GET" class="row">
+    {% if status == 'inactive' %}<input type="hidden" name="status" value="inactive">{% endif %}
+    <input type="text" name="q" value="{{ q or '' }}" placeholder="Търси служител, отдел, username..." style="max-width:360px;">
+    <button class="btn" type="submit">Търси</button>
+    {% if q %}<a class="btn secondary" href="{{ url_for('team', status=status) }}">Изчисти</a>{% endif %}
+  </form>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr));">
+  {% for emp in employees %}
+  <div class="card">
+    <div class="row" style="align-items:center;">
+      {% if emp.photo %}<img class="avatar" src="{{ url_for('static', filename='uploads/' ~ emp.photo) }}">{% else %}<div class="avatar" style="display:grid;place-items:center;">👤</div>{% endif %}
+      <div>
+        <h3 style="margin:0;">{{ emp.first_name }} {{ emp.last_name }}</h3>
+        <div class="muted">{{ emp.department or '-' }}</div>
+      </div>
+    </div>
+
+    <p class="muted">
+      🧩 {{ emp.position|position_label if emp.position is defined else emp.position }}<br>
+      👤 Ръководител: {% if emp.manager_first_name %}{{ emp.manager_first_name }} {{ emp.manager_last_name }}{% else %}-{% endif %}<br>
+      ✉️ {{ emp.email or '-' }}<br>
+      📞 {{ emp.phone or '-' }}<br>
+      💶 {{ emp.hourly_rate|money }}/ч
+    </p>
+
+    <form method="POST" action="{{ url_for('team_toggle_active', employee_id=emp.id) }}" style="margin-bottom:14px;">
+      <input type="hidden" name="return_status" value="{{ status }}">
+      <label class="switch">
+        <input type="checkbox" name="active" value="1" {% if emp.active == 1 %}checked{% endif %} onchange="this.form.submit()">
+        <span class="slider"></span>
+        <span>{% if emp.active == 1 %}Активен{% else %}Неактивен{% endif %}</span>
+      </label>
+    </form>
+
+    {% if emp.active == 1 %}
+    <form method="POST" action="{{ url_for('team_update_hierarchy', employee_id=emp.id) }}">
+      <div class="form-grid">
+        <div>
+          <label>Длъжност</label>
+          <select name="position">
+            {% for key,label in position_labels.items() %}
+              <option value="{{ key }}" {% if emp.position == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Пряк ръководител</label>
+          <select name="manager_id">
+            <option value="">Без ръководител</option>
+            {% for m in managers %}
+              {% if m.id != emp.id %}
+                <option value="{{ m.id }}" {% if emp.manager_id == m.id %}selected{% endif %}>{{ m.first_name }} {{ m.last_name }} · {{ m.position|position_label }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <button class="btn small" style="margin-top:10px;" type="submit">Запази йерархия</button>
+    </form>
+    {% endif %}
+
+    {% if emp.username %}
+      <div class="badge" style="margin-top:12px;">🔐 {{ emp.username }} · {{ emp.role }}</div>
+      {% if is_admin_user or can('can_manage_users') %}
+        {% if is_admin_user or can('can_manage_users') %}
+          <form method="POST" action="{{ url_for('user_reset_password', user_id=emp.user_id) }}" style="margin-top:10px;" onsubmit="return confirm('Да генерирам ли нова временна парола?')">
+            <button class="btn small secondary" type="submit">🔑 Рестарт парола</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    {% elif emp.active == 1 %}
+      <form method="POST" action="{{ url_for('team_create_access', employee_id=emp.id) }}" style="margin-top:12px;">
+        <label>Създай достъп</label>
+        <input type="text" name="username" placeholder="username" required>
+        <button class="btn" style="margin-top:10px;" type="submit">Създай достъп</button>
+      </form>
+    {% endif %}
+
+    <div class="compact-actions" style="margin-top:14px;">
+      <a class="btn small secondary" href="{{ url_for('employee_profile', employee_id=emp.id) }}">Профил</a>
+      {% if emp.active == 1 %}<a class="btn small secondary" href="{{ url_for('employee_edit', employee_id=emp.id) }}">Редакция</a>{% endif %}
+      {% if user_can_view_salary(current_user, emp.id) %}
+        <a class="btn small" href="{{ url_for('report_monthly', employee_id=emp.id) }}">PDF отчет</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}<div class="card">Няма намерени служители.</div>{% endfor %}
+</div>
+{% endblock %}

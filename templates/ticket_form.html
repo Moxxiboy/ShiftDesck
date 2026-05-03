@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% set page_title = "Нова заявка" %}
+{% set title = "Нова заявка" %}
+{% block content %}
+<div class="card" style="max-width:760px;">
+  <h2 style="margin-top:0;">🎫 Нова заявка</h2>
+  <p class="muted">Изпрати заявка към прекия си ръководител. Файл се прикачва само при болничен.</p>
+  <form method="POST" enctype="multipart/form-data" data-ajax="true" data-follow-redirect="true">
+    <label>Тип заявка</label><select name="type" required id="ticketTypeSelect"><option value="Отпуска">Отпуска</option><option value="Болничен">Болничен</option><option value="Забравена парола">Забравена парола</option><option value="Смяна на работен ден">Смяна на работен ден</option><option value="Друг проблем">Друг проблем</option></select>
+    <label>Заглавие</label><input type="text" name="title" required placeholder="Например: Отпуска за 3 дни">
+    <div class="form-grid"><div><label>От дата</label><input type="date" name="start_date"></div><div><label>До дата</label><input type="date" name="end_date"></div></div>
+    <label>Описание</label><textarea name="description" rows="5" placeholder="Опиши заявката..."></textarea>
+    <div id="sickAttachmentField" style="display:none;">
+      <label>Прикачен файл за болничен</label>
+      <input type="file" name="attachment" accept=".png,.jpg,.jpeg,.webp,.pdf">
+      <div class="muted">Разрешени файлове: снимка или PDF.</div>
+    </div>
+    <div class="row" style="margin-top:18px;"><button class="btn" type="submit">Изпрати заявка</button><a class="btn secondary" href="{{ url_for('tickets') }}">Назад</a></div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+const ticketTypeSelect = document.getElementById("ticketTypeSelect");
+const sickAttachmentField = document.getElementById("sickAttachmentField");
+function syncSickAttachment(){
+  if(!ticketTypeSelect || !sickAttachmentField) return;
+  const isSick = (ticketTypeSelect.value || "").toLowerCase().includes("болнич");
+  sickAttachmentField.style.display = isSick ? "block" : "none";
+  if(!isSick){
+    const file = sickAttachmentField.querySelector('input[type="file"]');
+    if(file) file.value = "";
+  }
+}
+if(ticketTypeSelect){
+  ticketTypeSelect.addEventListener("change", syncSickAttachment);
+  syncSickAttachment();
+}
+{% endblock %}

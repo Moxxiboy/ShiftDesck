@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% set page_title = "Моето възнаграждение" %}
+{% set title = "Моето възнаграждение" %}
+
+{% block content %}
+{% set status = payroll.status or 'preview' %}
+{% set status_text = 'Изпратено' if status == 'sent' else ('Изчислено' if status == 'calculated' else ('Обработено' if status == 'processed' else 'Предварително')) %}
+
+<style>
+  .my-payroll-page{display:grid;gap:18px;max-width:1100px;margin:0 auto}
+  .my-payroll-hero{position:relative;overflow:hidden;padding:24px;border-radius:28px;background:linear-gradient(135deg,rgba(124,58,237,.35),rgba(6,182,212,.18));border:1px solid rgba(255,255,255,.12)}
+  .my-payroll-hero:after{content:"";position:absolute;right:-70px;top:-80px;width:240px;height:240px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .my-payroll-top{position:relative;display:flex;justify-content:space-between;gap:18px;align-items:flex-start;z-index:1}
+  .my-payroll-name{display:flex;gap:14px;align-items:center}
+  .my-payroll-avatar{width:62px;height:62px;border-radius:20px;object-fit:cover;background:rgba(15,23,42,.65);display:grid;place-items:center;font-size:30px;border:1px solid rgba(255,255,255,.12)}
+  .my-payroll-net{position:relative;z-index:1;margin-top:26px}
+  .my-payroll-net .amount{font-size:clamp(38px,7vw,68px);font-weight:900;letter-spacing:-2px;line-height:1}
+  .my-payroll-month-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .payroll-pill{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.14);background:rgba(15,23,42,.45);padding:9px 12px;border-radius:999px;font-weight:800}
+  .my-payroll-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .my-payroll-summary .card{padding:16px;border-radius:22px}
+  .my-payroll-breakdown{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+  .payroll-line{display:flex;justify-content:space-between;gap:16px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .payroll-line:last-child{border-bottom:0}
+  .payroll-line.total{font-size:18px;font-weight:900}
+  .payroll-history-list{display:grid;gap:10px}
+  .payroll-history-item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:18px;background:rgba(15,23,42,.35);text-decoration:none;color:inherit}
+  .payroll-history-item:hover{background:rgba(124,58,237,.14)}
+  .payroll-shifts{display:grid;gap:8px;max-height:360px;overflow:auto;padding-right:4px}
+  .payroll-shift-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:16px;background:rgba(15,23,42,.32)}
+  @media(max-width:780px){
+    .my-payroll-page{gap:14px}
+    .my-payroll-hero{padding:18px;border-radius:24px}
+    .my-payroll-top{display:grid}
+    .my-payroll-month-nav{justify-content:flex-start}
+    .my-payroll-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .my-payroll-breakdown{grid-template-columns:1fr}
+    .payroll-history-item{align-items:flex-start}
+    .payroll-shift-row{grid-template-columns:1fr;gap:4px}
+  }
+</style>
+
+<div class="my-payroll-page">
+  <section class="my-payroll-hero">
+    <div class="my-payroll-top">
+      <div class="my-payroll-name">
+        {% if employee.photo %}
+          <img class="my-payroll-avatar" src="{{ url_for('static', filename='uploads/' ~ employee.photo) }}" alt="avatar">
+        {% else %}
+          <div class="my-payroll-avatar">👤</div>
+        {% endif %}
+        <div>
+          <h2 style="margin:0;">Моето възнаграждение</h2>
+          <div class="muted">{{ employee.first_name }} {{ employee.last_name }} · {{ employee.department or '-' }}</div>
+        </div>
+      </div>
+      <div class="my-payroll-month-nav">
+        <a class="btn small secondary" href="{{ url_for('payroll_me', year=prev_year, month=prev_month) }}">‹</a>
+        <span class="payroll-pill">📅 {{ month_label }}</span>
+        <a class="btn small secondary" href="{{ url_for('payroll_me', year=next_year, month=next_month) }}">›</a>
+      </div>
+    </div>
+
+    <div class="my-payroll-net">
+      <div class="muted">Нетно за получаване</div>
+      <div class="amount">{{ (payroll.net_total or 0)|money }}</div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <span class="badge">{{ status_text }}</span>
+        {% if not payroll.is_saved %}<span class="badge">Предварително по текущия график</span>{% endif %}
+        {% if payroll.created_at %}<span class="badge">Обновено: {{ payroll.created_at }}</span>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="my-payroll-summary">
+    <div class="card"><div class="muted">Изработени часове</div><div class="stat">{{ "%.2f"|format(payroll.worked_hours or 0) }}</div></div>
+    <div class="card"><div class="muted">Смени</div><div class="stat">{{ payroll.shifts|length if payroll.shifts else 0 }}</div></div>
+    <div class="card"><div class="muted">Болнични</div><div class="stat">{{ payroll.sick_days or 0 }}</div></div>
+    <div class="card"><div class="muted">Извънредни</div><div class="stat">{{ "%.2f"|format(payroll.overtime_hours or 0) }}</div></div>
+  </section>
+
+  <section class="my-payroll-breakdown">
+    <div class="card">
+      <h3 style="margin-top:0;">Разбивка</h3>
+      <div class="payroll-line"><span>Основно възнаграждение</span><strong>{{ (payroll.gross_base or 0)|money }}</strong></div>
+      <div class="payroll-line"><span>Надбавки</span><strong>{{ (payroll.additions or 0)|money }}</strong></div>
+      <div class="payroll-line"><span>Бонус</span><strong>{{ (payroll.bonus or 0)|money }}</strong></div>
+      <div class="payroll-line"><span>Корекция</span><strong>{{ (payroll.correction or 0)|money }}</strong></div>
+      <div class="payroll-line"><span>Болнични</span><strong>{{ (payroll.sick_pay or 0)|money }}</strong></div>
+      <div class="payroll-line total"><span>Брутно</span><strong>{{ (payroll.gross_total or 0)|money }}</strong></div>
+      <div class="payroll-line"><span>Осигуровки</span><strong>- {{ (payroll.employee_social or 0)|money }}</strong></div>
+      <div class="payroll-line"><span>Данък</span><strong>- {{ (payroll.income_tax or 0)|money }}</strong></div>
+      <div class="payroll-line total"><span>Нетно</span><strong>{{ (payroll.net_total or 0)|money }}</strong></div>
+      {% if payroll.notes %}<p class="muted" style="margin-bottom:0;">Бележка: {{ payroll.notes }}</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">История</h3>
+      <div class="payroll-history-list">
+        {% for h in history %}
+          <a class="payroll-history-item" href="{{ url_for('payroll_me', year=h.year, month=h.month) }}">
+            <div>
+              <strong>{{ h.label }}</strong>
+              <div class="muted">{{ 'Изпратено' if h.status == 'sent' else ('Изчислено' if h.status == 'calculated' else h.status) }}</div>
+            </div>
+            <div style="text-align:right;">
+              <strong>{{ h.net_total|money }}</strong>
+              <div class="muted">{{ "%.2f"|format(h.worked_hours) }} ч.</div>
+            </div>
+          </a>
+        {% else %}
+          <div class="muted">Все още няма записана история. Когато финансов отдел обработи payroll, месеците ще се появят тук.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 style="margin-top:0;">Смени за {{ month_label }}</h3>
+    <div class="payroll-shifts">
+      {% for s in payroll.shifts or [] %}
+        <div class="payroll-shift-row">
+          <strong>{{ s.date }}</strong>
+          <span>{{ s.start }} - {{ s.end }}</span>
+          <span class="badge">{{ "%.2f"|format(s.hours) }} ч.</span>
+        </div>
+      {% else %}
+        <div class="muted">Няма смени за този месец.</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

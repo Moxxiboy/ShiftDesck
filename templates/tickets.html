@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% set page_title = "Заявки" %}
+{% set title = "Заявки" %}
+
+{% macro status_badge(ticket) -%}
+  {% if ticket.status == 'new' %}<span class="badge ticket-status-badge">🔴 Нова</span>
+  {% elif ticket.status == 'pending' %}<span class="badge ticket-status-badge">⏳ Чака</span>
+  {% elif ticket.status == 'approved' %}<span class="badge ticket-status-badge">✅ Одобрено</span>
+  {% elif ticket.status == 'rejected' %}<span class="badge ticket-status-badge">❌ Отказано</span>
+  {% elif ticket.status == 'read' %}<span class="badge ticket-status-badge">👁️ Прочетено</span>
+  {% else %}<span class="badge ticket-status-badge">📦 Архив</span>{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">🎫 Заявки</h2>
+    <div class="muted">Списък със заявки. Клик върху ред отваря досието.</div>
+  </div>
+
+  {% if current_user.employee_id and can('can_create_tickets') %}
+    <a class="btn" href="{{ url_for('ticket_new') }}">+ Нова заявка</a>
+  {% endif %}
+</div>
+
+<div class="tabs ticket-tabs">
+  <a class="tab {% if bucket == 'new' %}active{% endif %}" href="{{ url_for('tickets', bucket='new') }}">🔴 Нови · <span data-ticket-count="new">{{ counts.new }}</span></a>
+  <a class="tab {% if bucket == 'pending' %}active{% endif %}" href="{{ url_for('tickets', bucket='pending') }}">🟡 Чакащи · <span data-ticket-count="pending">{{ counts.pending }}</span></a>
+  <a class="tab {% if bucket == 'answered' %}active{% endif %}" href="{{ url_for('tickets', bucket='answered') }}">🟢 Одобрени/Отказани · <span data-ticket-count="answered">{{ counts.answered }}</span></a>
+  <a class="tab {% if bucket == 'read' %}active{% endif %}" href="{{ url_for('tickets', bucket='read') }}">👁️ Прочетени · <span data-ticket-count="read">{{ counts.read }}</span></a>
+  <a class="tab {% if bucket == 'archived' %}active{% endif %}" href="{{ url_for('tickets', bucket='archived') }}">📦 Архив · <span data-ticket-count="archived">{{ counts.archived }}</span></a>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="GET" class="row">
+    <input type="hidden" name="bucket" value="{{ bucket }}">
+    <input type="text" name="q" value="{{ q or '' }}" placeholder="Търси тикет..." style="max-width:340px;">
+    <button class="btn" type="submit">Търси</button>
+    {% if q %}
+      <a class="btn secondary" href="{{ url_for('tickets', bucket=bucket) }}">Изчисти</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card table-wrap ticket-list-card">
+  <table class="ticket-list-table">
+    <thead>
+      <tr>
+        <th>Заявка</th>
+        <th>Служител</th>
+        <th>Период</th>
+        <th>Статус</th>
+        <th>Създадена</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ticket in tickets %}
+      <tr class="ticket-list-row" data-ticket-card="{{ ticket.id }}" data-ticket-status="{{ ticket.status }}" onclick="openTicketDossier({{ ticket.id }}, event)" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){openTicketDossier({{ ticket.id }}, event)}">
+        <td>
+          <strong>{{ ticket.title }}</strong>
+          <div class="muted">{{ ticket.type }}</div>
+        </td>
+        <td>{{ ticket.first_name }} {{ ticket.last_name }}{% if ticket.assigned_username %}<div class="muted">към {{ ticket.assigned_username }}</div>{% endif %}</td>
+        <td>{% if ticket.start_date or ticket.end_date %}{{ ticket.start_date|datepretty }} → {{ ticket.end_date|datepretty }}{% else %}-{% endif %}</td>
+        <td>{{ status_badge(ticket) }}</td>
+        <td><span class="muted">{{ ticket.created_at|dtpretty }}</span></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5">
+          <strong>{% if bucket == 'archived' %}Няма архивирани тикети{% else %}Няма заявки в този списък{% endif %}</strong>
+          <div class="muted">Когато има заявки, ще се появят тук.</div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% for ticket in tickets %}
+<div id="ticket-modal-{{ ticket.id }}" class="modal-backdrop ticket-modal" onclick="closeTicketDossier(event)">
+  <div class="modal-card ticket-dossier" onclick="event.stopPropagation()">
+    <div class="row space">
+      <div>
+        <span class="badge">{{ ticket.type }}</span>
+        <h2 style="margin:12px 0 4px;">{{ ticket.title }}</h2>
+        <div class="muted">{{ ticket.first_name }} {{ ticket.last_name }}{% if ticket.assigned_username %} · към {{ ticket.assigned_username }}{% endif %}</div>
+      </div>
+      <button class="btn small secondary" type="button" onclick="hideTicketDossier({{ ticket.id }})">✕</button>
+    </div>
+
+    <div class="ticket-dossier-grid">
+      <div class="card">
+        <div class="muted">Създадена</div>
+        <strong>{{ ticket.created_at|dtpretty }}</strong>
+      </div>
+      <div class="card">
+        <div class="muted">Период</div>
+        <strong>{% if ticket.start_date or ticket.end_date %}{{ ticket.start_date|datepretty }} → {{ ticket.end_date|datepretty }}{% else %}-{% endif %}</strong>
+      </div>
+      <div class="card">
+        <div class="muted">Ниво</div>
+        <strong>{{ ticket.approval_level or 1 }}</strong>
+      </div>
+      <div class="card ticket-status-control-card">
+        <div class="muted">Статус</div>
+        <div class="row" style="align-items:end;">
+          <div id="ticketStatusWrap-{{ ticket.id }}">{{ status_badge(ticket) }}</div>
+          {% if user_can_process_ticket(current_user, ticket) and bucket != 'archived' %}
+          <form class="ticket-inline-status-form" method="POST" action="{{ url_for('ticket_update', ticket_id=ticket.id) }}" data-ticket-id="{{ ticket.id }}">
+            <select name="status" class="ticket-status-select">
+              <option value="pending" {% if ticket.status == 'pending' or ticket.status == 'new' %}selected{% endif %}>Чака</option>
+              <option value="approved" {% if ticket.status == 'approved' %}selected{% endif %}>Одобрено</option>
+              <option value="rejected" {% if ticket.status == 'rejected' %}selected{% endif %}>Отказано</option>
+              <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>Приключено</option>
+            </select>
+            <input type="hidden" name="manager_comment" value="{{ ticket.manager_comment or '' }}">
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if ticket.description %}
+    <div class="card" style="margin-top:14px;">
+      <div class="muted">Описание</div>
+      <p style="margin-bottom:0;">{{ ticket.description }}</p>
+    </div>
+    {% endif %}
+
+    {% if ticket.attachment %}
+      <p style="margin-top:14px;">📎 <a class="badge" href="{{ url_for('static', filename='uploads/' ~ ticket.attachment) }}" target="_blank">Отвори файл</a></p>
+    {% endif %}
+
+    <div class="card" style="margin-top:14px;">
+      <h3 style="margin-top:0;">История</h3>
+      <div class="ticket-timeline">
+        <div>✅ Създадена: {{ ticket.created_at|dtpretty }}</div>
+        <div>{% if ticket.manager_seen_at %}👀 Видяна от мениджър: {{ ticket.manager_seen_at|dtpretty }}{% else %}👀 Видяна от мениджър: -{% endif %}</div>
+        <div>{% if ticket.responded_at %}💬 Отговорено: {{ ticket.responded_at|dtpretty }}{% else %}💬 Отговорено: -{% endif %}</div>
+        <div>{% if ticket.employee_seen_at %}👁️ Прочетена от служител: {{ ticket.employee_seen_at|dtpretty }}{% else %}👁️ Прочетена от служител: -{% endif %}</div>
+        <div>{% if ticket.archive_after_at %}📦 Архив след: {{ ticket.archive_after_at|dtpretty }}{% else %}📦 Архив след: -{% endif %}</div>
+      </div>
+    </div>
+
+    {% if ticket.manager_comment %}
+    <div class="card" style="margin-top:14px;">
+      <strong>Коментар:</strong><br>
+      {{ ticket.manager_comment }}
+    </div>
+    {% endif %}
+
+    {% if can_escalate_ticket(current_user, ticket) and bucket != 'archived' %}
+      <form class="ticket-smooth-form card" method="POST" action="{{ url_for('ticket_escalate', ticket_id=ticket.id) }}" style="margin-top:16px;" data-ticket-id="{{ ticket.id }}">
+        <input type="hidden" name="manager_comment" value="{{ ticket.manager_comment or '' }}">
+        <button class="btn secondary" type="submit">⬆️ Ескалирай към по-горно ниво</button>
+        <div class="muted" style="margin-top:8px;">Използвай това, ако заявката трябва да се реши от следващия ръководител.</div>
+      </form>
+    {% endif %}
+
+    {% if user_can_process_ticket(current_user, ticket) and bucket != 'archived' %}
+      <form class="ticket-smooth-form card" method="POST" action="{{ url_for('ticket_update', ticket_id=ticket.id) }}" style="margin-top:16px;" data-ticket-id="{{ ticket.id }}">
+        <label>Коментар</label>
+        <input type="text" name="manager_comment" value="{{ ticket.manager_comment or '' }}">
+        <button class="btn" style="margin-top:12px;" type="submit">Запази коментар</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+function updateTicketCounts(counts){
+  if(!counts) return;
+  Object.entries(counts).forEach(([key,value])=>{
+    document.querySelectorAll(`[data-ticket-count="${key}"]`).forEach(el=>{
+      el.textContent = value;
+      const tab = el.closest(".tab");
+      if(tab) tab.classList.toggle("has-items", Number(value || 0) > 0);
+    });
+  });
+}
+
+function ticketStatusHtml(status){
+  const labels = {
+    new:"🔴 Нова",
+    pending:"⏳ Чака",
+    approved:"✅ Одобрено",
+    rejected:"❌ Отказано",
+    read:"👁️ Прочетено",
+    archived:"📦 Архив",
+    closed:"📌 Приключено"
+  };
+  return `<span class="badge ticket-status-badge">${labels[status] || status}</span>`;
+}
+
+function setTicketCardStatus(ticketId, status){
+  document.querySelectorAll(`[data-ticket-card="${ticketId}"]`).forEach(row=>{
+    row.dataset.ticketStatus = status;
+    const badge = row.querySelector(".ticket-status-badge");
+    if(badge){
+      badge.outerHTML = ticketStatusHtml(status);
+      const newBadge = row.querySelector(".ticket-status-badge");
+      if(newBadge){
+        newBadge.classList.add("ticket-status-flash");
+        setTimeout(()=>newBadge.classList.remove("ticket-status-flash"), 650);
+      }
+    }
+  });
+  const wrap = document.getElementById("ticketStatusWrap-" + ticketId);
+  if(wrap) wrap.innerHTML = ticketStatusHtml(status);
+  document.querySelectorAll(`form[data-ticket-id="${ticketId}"] input[name="status"]`).forEach(input=>{
+    input.value = status;
+  });
+}
+
+function openTicketDossier(ticketId, event){
+  if(event && event.target.closest("form, button, input, select, textarea, a")) return;
+  const modal = document.getElementById("ticket-modal-" + ticketId);
+  if(modal) modal.classList.add("show");
+  markTicketOpened(ticketId);
+}
+
+function hideTicketDossier(ticketId){
+  const modal = document.getElementById("ticket-modal-" + ticketId);
+  if(modal) modal.classList.remove("show");
+}
+function closeTicketDossier(event){
+  if(event.target.classList.contains("ticket-modal")) event.target.classList.remove("show");
+}
+
+const autoOpenTicketId = new URLSearchParams(window.location.search).get("open_ticket");
+if(autoOpenTicketId){
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-ticket-card="${CSS.escape(autoOpenTicketId)}"]`);
+    if(row) row.scrollIntoView({block:"center", behavior:"smooth"});
+    openTicketDossier(autoOpenTicketId);
+  });
+}
+
+async function postTicketForm(form){
+  const fd = new FormData(form);
+  const statusSelect = form.querySelector("select[name='status']");
+  if(statusSelect) fd.set("status", statusSelect.value);
+  const res = await fetch(form.getAttribute("action"), {
+    method:"POST",
+    headers:{"X-Requested-With":"fetch","Accept":"application/json"},
+    body:fd,
+    credentials:"same-origin"
+  });
+
+  const ct = res.headers.get("content-type") || "";
+  if(ct.includes("application/json")) return await res.json();
+
+  const text = await res.text();
+  return {ok:false, message:"Сървърът върна HTML вместо JSON. Провери дали си логнат и дали route-ът е правилен. " + text.slice(0,80).replace(/\s+/g," ")};
+}
+
+async function markTicketOpened(ticketId){
+  try{
+    const url = "/tickets/" + encodeURIComponent(String(ticketId)) + "/open";
+    const res = await fetch(url, {
+      method:"POST",
+      headers:{"X-Requested-With":"fetch","Accept":"application/json"},
+      credentials:"same-origin"
+    });
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : {ok:false,message:"Open ticket върна HTML вместо JSON."};
+    if(data.ok){
+      if(data.status) setTicketCardStatus(ticketId, data.status);
+      updateTicketCounts(data.counts);
+    }else{
+      showAjaxMiniToast(data.message || "Грешка при отваряне на тикета.", false);
+    }
+  }catch(e){
+    showAjaxMiniToast("Грешка: " + e.message, false);
+  }
+}
+
+document.querySelectorAll(".ticket-inline-status-form select[name='status']").forEach(select=>{
+  select.addEventListener("change", async function(event){
+    const form = select.closest("form");
+    const ticketId = form.dataset.ticketId;
+    select.disabled = true;
+    try{
+      const data = await postTicketForm(form);
+      showAjaxMiniToast(data.message || (data.ok ? "Статусът е запазен." : "Грешка"), !!data.ok);
+      if(data.ok){
+        setTicketCardStatus(ticketId, data.status);
+        updateTicketCounts(data.counts);
+      }
+    }catch(e){
+      showAjaxMiniToast("Грешка: " + e.message, false);
+    }finally{
+      select.disabled = false;
+    }
+  });
+});
+
+document.querySelectorAll(".ticket-smooth-form").forEach(form=>{
+  form.addEventListener("submit", async function(event){
+    event.preventDefault();
+    event.stopPropagation();
+    const btn=form.querySelector("button[type='submit']");
+    const old=btn?btn.textContent:"";
+    if(btn){btn.disabled=true;btn.textContent="Записвам...";}
+    try{
+      const data = await postTicketForm(form);
+      showAjaxMiniToast(data.message || (data.ok?"Готово":"Грешка"), !!data.ok);
+      if(data.ok){
+        const ticketId = form.dataset.ticketId;
+        setTicketCardStatus(ticketId, data.status);
+        updateTicketCounts(data.counts);
+        if(data.archived){
+          document.querySelectorAll(`[data-ticket-card="${ticketId}"]`).forEach(row=>{
+            row.style.opacity=".35";
+            setTimeout(()=>row.remove(),350);
+          });
+          hideTicketDossier(ticketId);
+        }
+      }
+    }catch(e){
+      showAjaxMiniToast("Грешка: "+e.message,false);
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent=old;}
+    }
+  });
+});
+
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape"){
+    document.querySelectorAll(".ticket-modal.show").forEach(m=>m.classList.remove("show"));
+  }
+});
+
+document.addEventListener("DOMContentLoaded", ()=>updateTicketCounts({
+  new:Number(document.querySelector('[data-ticket-count="new"]')?.textContent||0),
+  pending:Number(document.querySelector('[data-ticket-count="pending"]')?.textContent||0),
+  answered:Number(document.querySelector('[data-ticket-count="answered"]')?.textContent||0),
+  read:Number(document.querySelector('[data-ticket-count="read"]')?.textContent||0),
+  archived:Number(document.querySelector('[data-ticket-count="archived"]')?.textContent||0)
+}));
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% set page_title = "Начало" %}
+{% set title = "Начало" %}
+
+{% block content %}
+<div class="quick-grid" style="margin-bottom:18px;">
+  {% if is_admin_user or can('can_view_calendar') %}
+    <a class="quick-card" href="{{ url_for('schedule') }}">
+      <strong>🗓️ График</strong>
+      <span class="muted">Виж смени и дни</span>
+    </a>
+  {% endif %}
+
+  {% if is_admin_user or can('can_create_tickets') or can('can_process_tickets') or can('can_escalate_tickets') %}
+    <a class="quick-card" href="{{ url_for('tickets') }}">
+      <strong>🎫 Заявки</strong>
+      <span class="muted">Отпуска, болничен, проблем</span>
+    </a>
+  {% endif %}
+
+  <a class="quick-card" href="{{ url_for('notifications') }}">
+    <strong>🔔 Известия</strong>
+    <span class="muted">{{ unread_notifications }} непрочетени</span>
+  </a>
+
+  {% if is_admin_user or can('can_view_payroll') or can('can_manage_payroll') %}
+    <a class="quick-card" href="{{ url_for('payroll_tools') }}">
+      <strong>💶 Payroll</strong>
+      <span class="muted">Финансов център</span>
+    </a>
+  {% endif %}
+</div>
+
+<div class="grid" style="margin-bottom:18px;">
+  <div class="card">
+    <div class="muted">Служители</div>
+    <div class="stat">{{ stats.employees }}</div>
+  </div>
+
+  <div class="card">
+    <div class="muted">Отдели</div>
+    <div class="stat">{{ stats.departments }}</div>
+  </div>
+
+  <div class="card">
+    <div class="muted">Смени</div>
+    <div class="stat">{{ stats.shifts }}</div>
+  </div>
+
+  <div class="card">
+    <div class="muted">{% if is_admin_user or can('can_view_team') %}Днес{% else %}Часове{% endif %}</div>
+    <div class="stat">
+      {% if is_admin_user or can('can_view_team') %}
+        {{ stats.today }}
+      {% else %}
+        {{ stats.today }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="mobile-section-title">
+  <h2 style="margin:0;">Предстоящи смени</h2>
+  <a class="btn small secondary" href="{{ url_for('schedule') }}">Всички</a>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+  {% for s in upcoming %}
+    <div class="card">
+      <div class="row space">
+        <span class="badge">{{ s.work_date }}</span>
+        <span class="badge">{{ s.start_time }} - {{ s.end_time }}</span>
+      </div>
+
+      <h3>{{ s.first_name }} {{ s.last_name }}</h3>
+      <div class="muted">{{ s.department or '-' }}</div>
+
+      {% if s.notes %}
+        <p>{{ s.notes }}</p>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="card">
+      <h3>Няма предстоящи смени</h3>
+      <p class="muted">Когато има график, ще се появи тук.</p>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

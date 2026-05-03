@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% set page_title = "Payroll справки" %}
+{% set title = "Payroll справки" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">📨 Payroll справки</h2>
+    <div class="muted">Справки по мениджър/екип. Клик върху реда показва подчинените и часовете им.</div>
+  </div>
+  <a class="btn secondary" href="{{ url_for('payroll_tools') }}">Payroll център</a>
+</div>
+
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Мениджър / Екип</th>
+        <th>Период</th>
+        <th>Служители</th>
+        <th>Общо часове</th>
+        <th>Статус</th>
+        <th>Действие</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr class="payroll-report-row" data-report-row="{{ r.id }}" onclick="openReportDetails('report-detail-{{ r.id }}')" tabindex="0"
+          onkeydown="if(event.key==='Enter'||event.key===' '){openReportDetails('report-detail-{{ r.id }}')}">
+        <td>
+          <strong>{% if r.manager_first_name %}{{ r.manager_first_name }} {{ r.manager_last_name }}{% else %}{{ r.manager_username }}{% endif %}</strong>
+          <div class="muted">{{ r.team_name or '-' }}</div>
+        </td>
+        <td>{{ "%02d"|format(r.month) }}.{{ r.year }}</td>
+        <td>{{ r.employee_count }}</td>
+        <td>{{ "%.2f"|format(r.total_hours) }}</td>
+        <td><span id="reportStatusBadge-{{ r.id }}" class="badge">{{ r.status }}</span>{% if r.locked_at %}<div class="muted" style="font-size:12px;">🔒 заключен</div>{% endif %}</td>
+        <td onclick="event.stopPropagation()">
+          <form method="POST" action="{{ url_for('payroll_report_status', report_id=r.id) }}" class="row payroll-report-status-form" data-report-id="{{ r.id }}">
+            <select name="status" style="min-width:140px;">
+              <option value="sent" {% if r.status == 'sent' %}selected{% endif %}>Изпратена</option>
+              <option value="reviewed" {% if r.status == 'reviewed' %}selected{% endif %}>Прегледана</option>
+              <option value="processed" {% if r.status == 'processed' %}selected{% endif %}>Обработена</option>
+            </select>
+            <button class="btn small" type="submit">Запази</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Няма справки.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% for r in reports %}
+<div id="report-detail-{{ r.id }}" class="modal-backdrop report-detail-modal" onclick="closeReportDetails(event)">
+  <div class="modal-card report-detail-card" onclick="event.stopPropagation()">
+    <div class="row space">
+      <div>
+        <h2 style="margin:0;">{% if r.manager_first_name %}{{ r.manager_first_name }} {{ r.manager_last_name }}{% else %}{{ r.manager_username }}{% endif %}</h2>
+        <div class="muted">Екип: {{ r.team_name or '-' }} · Период: {{ "%02d"|format(r.month) }}.{{ r.year }}{% if r.locked_at %} · 🔒 календарът е заключен{% endif %}</div>
+      </div>
+      <button class="btn small secondary" type="button" onclick="hideReportDetails('report-detail-{{ r.id }}')">✕</button>
+    </div>
+
+    <div class="grid" style="margin:16px 0;">
+      <div class="card"><div class="muted">Служители</div><div class="stat">{{ r.employee_count }}</div></div>
+      <div class="card"><div class="muted">Общо часове</div><div class="stat">{{ "%.2f"|format(r.total_hours) }}</div></div>
+      <div class="card"><div class="muted">Извънредни</div><div class="stat">{{ "%.2f"|format(r.overtime_hours) }}</div></div>
+      <div class="card"><div class="muted">Празнични</div><div class="stat">{{ "%.2f"|format(r.holiday_hours) }}</div></div>
+    </div>
+
+    <div class="card table-wrap">
+      <h3 style="margin-top:0;">Подчинени</h3>
+      <table>
+        <thead><tr><th>Служител</th><th>Отдел</th><th>Часове</th><th>Извънредни</th><th>Празнични</th></tr></thead>
+        <tbody>
+          {% for e in r.employee_rows %}
+          <tr>
+            <td><strong>{{ e.name }}</strong></td>
+            <td>{{ e.department or '-' }}</td>
+            <td>{{ "%.2f"|format(e.hours) }}</td>
+            <td>{{ "%.2f"|format(e.overtime_hours) }}</td>
+            <td>{{ "%.2f"|format(e.holiday_hours) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">Няма служители в справката.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if r.notes %}
+    <div class="card" style="margin-top:16px;">
+      <div class="muted">Бележки</div>
+      <div>{{ r.notes }}</div>
+    </div>
+    {% endif %}
+
+    <div class="row" style="margin-top:16px;">
+      <button class="btn secondary" type="button" onclick="hideReportDetails('report-detail-{{ r.id }}')">Затвори</button>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+document.querySelectorAll(".payroll-report-status-form").forEach(form=>{
+  form.addEventListener("submit", async function(event){
+    event.preventDefault();
+    const btn=form.querySelector("button[type='submit']");
+    const old=btn?btn.textContent:"";
+    if(btn){btn.disabled=true;btn.textContent="Записвам...";}
+    try{
+      const res=await fetch(form.action,{method:"POST",headers:{"X-Requested-With":"fetch","Accept":"application/json"},body:new FormData(form)});
+      const data=await res.json();
+      showAjaxMiniToast(data.message || (data.ok?"Готово":"Грешка"), !!data.ok);
+      if(data.ok){
+        const badge=document.getElementById("reportStatusBadge-"+form.dataset.reportId);
+        if(badge) badge.textContent=data.status;
+      }
+    }catch(e){showAjaxMiniToast("Грешка: "+e.message,false);}
+    finally{if(btn){btn.disabled=false;btn.textContent=old;}}
+  });
+});
+
+function openReportDetails(id){
+  const modal=document.getElementById(id);
+  if(modal) modal.classList.add("show");
+}
+function hideReportDetails(id){
+  const modal=document.getElementById(id);
+  if(modal) modal.classList.remove("show");
+}
+function closeReportDetails(event){
+  if(event.target.classList.contains("report-detail-modal")){
+    event.target.classList.remove("show");
+  }
+}
+const autoOpenReportId = new URLSearchParams(window.location.search).get("open_report");
+if(autoOpenReportId){
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-report-row="${CSS.escape(autoOpenReportId)}"]`);
+    if(row) row.scrollIntoView({block:"center", behavior:"smooth"});
+    openReportDetails("report-detail-" + autoOpenReportId);
+  });
+}
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape"){
+    document.querySelectorAll(".report-detail-modal.show").forEach(m=>m.classList.remove("show"));
+  }
+});
+{% endblock %}

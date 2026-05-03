@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% set page_title = "Заплати" %}
+{% set title = "Заплати" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">💶 Заплати по период</h2>
+    <div class="muted">Брутно/нетно, бонуси и извънреден труд. Корекции прави само финансов отдел.</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="GET">
+    <div class="form-grid">
+      <div>
+        <label>От дата</label>
+        <input type="date" name="start" value="{{ start }}">
+      </div>
+      <div>
+        <label>До дата</label>
+        <input type="date" name="end" value="{{ end }}">
+      </div>
+    </div>
+    <button class="btn" style="margin-top:14px;" type="submit">Изчисли</button>
+  </form>
+</div>
+
+<div class="grid" style="margin-bottom:18px;">
+  <div class="card">
+    <div class="muted">Общо часове</div>
+    <div class="stat">{{ "%.2f"|format(total_hours) }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Брутно общо</div>
+    <div class="stat">{{ total_salary|money }}</div>
+  </div>
+</div>
+
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Служител</th>
+        <th>Отдел</th>
+        <th>Смени</th>
+        <th>Часове</th><th>Извънредни</th>
+        <th>Ставка</th>
+        <th>Брутно</th><th>Осиг.</th><th>Данък</th><th>Нетно</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><strong>{{ row.name }}</strong></td>
+        <td>{{ row.department }}</td>
+        <td>{{ row.hours|default(0) }} ч.</td>
+        <td>{{ "%.2f"|format(row.hours) }}</td><td>{{ "%.2f"|format(row.overtime_hours or 0) }}</td>
+        <td>{{ row.base_rate|money }}</td>
+        <td><strong>{{ row.gross|money }}</strong></td><td>{{ row.employee_social|money }}</td><td>{{ row.income_tax|money }}</td><td>{{ row.net|money }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10">Няма данни за този период.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted" style="margin-top:12px;">*Сметката използва приблизителни ставки за България: 13.78% осигуровки за служител и 10% ДОД.</p>
+{% endblock %}

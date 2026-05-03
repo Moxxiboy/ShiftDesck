@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% set page_title = "Какво е ново" %}
+{% set title = "Какво е ново" %}
+
+{% block content %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="row space">
+    <div>
+      <h2 style="margin:0;">🚀 {{ current_release['title'] }}</h2>
+      <div class="muted">Версия {{ current_release['version'] }} · Build {{ current_release['build'] }}</div>
+    </div>
+    <span class="badge">BETA</span>
+  </div>
+</div>
+
+<div class="changelog-list">
+  {% for change in changes %}
+  <div class="card changelog-card">
+    <div class="row space">
+      <h3 style="margin:0;">{{ change['title'] }}</h3>
+      <span class="badge">{{ change['version'] }}</span>
+    </div>
+    <ul>
+      {% for item in change['items'] %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

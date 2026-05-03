@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% set page_title = "Payroll център" %}
+{% set title = "Payroll център" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">💶 Payroll център</h2>
+    <div class="muted">Списък със служители. Клик отваря досие със заплата, история и действия.</div>
+  </div>
+  <div class="row">
+    {% if can_manage %}
+    <form method="POST" data-payroll-ajax="true" action="/api/payroll/action">
+      <input type="hidden" name="action" value="calculate_all">
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <button class="btn secondary" type="submit">🧮 Изчисли всички</button>
+    </form>
+    {% endif %}
+    {% if can_notify %}
+    <form method="POST" data-ajax="true" action="{{ url_for('payroll_notify_all', year=year, month=month) }}" onsubmit="return confirm('Да изпратя известия за заплата на всички служители за {{ "%02d"|format(month) }}.{{ year }}? Това ще заключи месеца.')">
+      <button class="btn" type="submit">🔔 Изпрати всички заплати</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <form method="GET" class="row">
+    <input type="number" name="year" value="{{ year }}" style="max-width:140px;">
+    <input type="number" name="month" min="1" max="12" value="{{ month }}" style="max-width:120px;">
+    <button class="btn" type="submit">Покажи</button>
+    <a class="btn secondary" href="{{ url_for('payroll_reports') }}">Справки от графици</a>
+  </form>
+</div>
+
+<div class="grid" style="margin-bottom:18px;">
+  <div class="card"><div class="muted">Активни служители</div><div class="stat">{{ active_employees }}</div></div>
+  <div class="card"><div class="muted">Работни дни</div><div class="stat">{{ work_days }}</div></div>
+  <div class="card"><div class="muted">Норма часове</div><div class="stat">{{ "%.2f"|format(norm_hours) }}</div></div>
+  <div class="card"><div class="muted">Реално часове</div><div class="stat">{{ "%.2f"|format(total_hours) }}</div></div>
+  <div class="card"><div class="muted">Брутно общо</div><div class="stat">{{ total_gross|money }}</div></div>
+  <div class="card"><div class="muted">Нетно общо</div><div class="stat">{{ total_net|money }}</div></div>
+</div>
+
+<div class="card table-wrap">
+  <h3 style="margin-top:0;">Служители</h3>
+  <table class="payroll-list-table">
+    <thead>
+      <tr>
+        <th>Служител</th>
+        <th>Отдел</th>
+        <th>Позиция</th>
+        <th>Ръководител</th>
+        <th>Часове</th>
+        <th>Нетно</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="payroll-row" data-payroll-row="{{ r.employee_id }}" tabindex="0" onclick="openPayrollDetails('payroll-detail-{{ r.employee_id }}')" onkeydown="if(event.key==='Enter'||event.key===' '){openPayrollDetails('payroll-detail-{{ r.employee_id }}')}">
+        <td><strong>{{ r.name }}</strong><div class="muted">{{ r.email or '-' }}</div></td>
+        <td>{{ r.department }}</td>
+        <td>{{ r.position|position_label if r.position else '-' }}</td>
+        <td>{{ r.manager_name or '-' }}</td>
+        <td>{{ "%.2f"|format(r.worked_hours) }}</td>
+        <td><strong data-payroll-table-net="{{ r.employee_id }}">{{ r.net_total|money }}</strong></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Няма служители.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% for r in rows %}
+<div id="payroll-detail-{{ r.employee_id }}" class="modal-backdrop payroll-detail-modal" data-payroll-modal="{{ r.employee_id }}" onclick="closePayrollDetails(event)">
+  <div class="modal-card payroll-detail-card payroll-dossier-card" onclick="event.stopPropagation()">
+    <div class="payroll-dossier-header">
+      <div class="payroll-dossier-person">
+        {% if r.photo %}
+          <img class="payroll-dossier-photo" src="{{ url_for('static', filename='uploads/' ~ r.photo) }}">
+        {% else %}
+          <div class="payroll-dossier-photo placeholder">👤</div>
+        {% endif %}
+        <div>
+          <h2 style="margin:0;">{{ r.name }}</h2>
+          <div class="muted">{{ r.department }} · {{ r.position|position_label if r.position else '-' }}</div>
+          <div class="badge" style="margin-top:8px;">Ръководител: {{ r.manager_name or '-' }}</div>
+        </div>
+      </div>
+      <button class="btn small secondary" type="button" onclick="hidePayrollDetails('payroll-detail-{{ r.employee_id }}')">✕</button>
+    </div>
+
+    <div class="payroll-dossier-layout">
+      <aside class="payroll-dossier-left">
+        <div class="card">
+          <h3 style="margin-top:0;">Профил</h3>
+          <div class="dossier-info-list">
+            <div><span>Email</span><strong>{{ r.email or '-' }}</strong></div>
+            <div><span>Телефон</span><strong>{{ r.phone or '-' }}</strong></div>
+            <div><span>Отдел</span><strong>{{ r.department or '-' }}</strong></div>
+            <div><span>Позиция</span><strong>{{ r.position|position_label if r.position else '-' }}</strong></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Заплащане</h3>
+          <div class="dossier-info-list">
+            <div><span>Тип</span><strong data-payroll-field="pay_type_label">{{ 'Месечна' if r.pay_type == 'monthly' else 'Почасова' }}</strong></div>
+            <div><span>Месечна брутна</span><strong data-payroll-field="monthly_gross">{{ r.monthly_gross|money }}</strong></div>
+            <div><span>Ставка</span><strong data-payroll-field="base_rate">{{ "%.4f"|format(r.base_rate) }} €/ч</strong></div>
+          </div>
+        </div>
+
+        {% if can_notify %}
+        <form method="POST" data-ajax="true" action="{{ url_for('payroll_notify_employee', employee_id=r.employee_id, year=year, month=month) }}">
+          <button class="btn" style="width:100%;" type="submit">🔔 Изпрати известие за заплата</button>
+        </form>
+        {% endif %}
+      </aside>
+
+      <main class="payroll-dossier-main">
+        <div class="dossier-metrics">
+          <div class="card"><div class="muted">Норма</div><div class="stat" data-payroll-field="norm_hours">{{ "%.2f"|format(r.norm_hours) }}</div></div>
+          <div class="card"><div class="muted">Изработени</div><div class="stat" data-payroll-field="worked_hours">{{ "%.2f"|format(r.worked_hours) }}</div></div>
+          <div class="card"><div class="muted">Празник</div><div class="stat" data-payroll-field="holiday_hours">{{ "%.2f"|format(r.holiday_hours) }}</div></div>
+          <div class="card"><div class="muted">Почивен ден</div><div class="stat" data-payroll-field="weekend_hours">{{ "%.2f"|format(r.weekend_hours) }}</div></div>
+          <div class="card"><div class="muted">Извънредни</div><div class="stat" data-payroll-field="overtime_hours">{{ "%.2f"|format(r.overtime_hours) }}</div></div>
+          <div class="card"><div class="muted">Болнични</div><div class="stat" data-payroll-field="sick_days">{{ r.sick_days }}</div></div>
+        </div>
+
+        <div class="dossier-money">
+          <div class="card"><div class="muted">Основно</div><div class="stat" data-payroll-field="gross_base">{{ r.gross_base|money }}</div></div>
+          <div class="card"><div class="muted">Надбавки</div><div class="stat" data-payroll-field="additions">{{ r.additions|money }}</div></div>
+          <div class="card"><div class="muted">Бонус</div><div class="stat" data-payroll-field="bonus">{{ r.bonus|money }}</div></div>
+          <div class="card"><div class="muted">Корекция</div><div class="stat" data-payroll-field="correction">{{ r.correction|money }}</div></div>
+          <div class="card total"><div class="muted">Брутно</div><div class="stat" data-payroll-field="gross_total">{{ r.gross_total|money }}</div></div>
+          <div class="card total"><div class="muted">Нетно</div><div class="stat" data-payroll-field="net_total">{{ r.net_total|money }}</div></div>
+        </div>
+
+        {% if can_edit_rate or can_manage %}
+        <div class="dossier-forms">
+          {% if can_edit_rate %}
+          <form method="POST" class="card payroll-smooth-form" data-payroll-ajax="true" action="/api/payroll/action">
+            <input type="hidden" name="action" value="update_rate">
+            <input type="hidden" name="employee_id" value="{{ r.employee_id }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <h3 style="margin-top:0;">Ставка</h3>
+            <div class="form-grid">
+              <div><label>Тип</label><select name="pay_type"><option value="monthly" {% if r.pay_type == 'monthly' %}selected{% endif %}>Месечна</option><option value="hourly" {% if r.pay_type == 'hourly' %}selected{% endif %}>Почасова</option></select></div>
+              <div><label>Месечна брутна</label><input type="number" step="0.01" name="monthly_gross" value="{{ r.monthly_gross }}"></div>
+              <div><label>Почасова ставка</label><input type="number" step="0.01" name="hourly_rate" value="{{ r.base_rate }}"></div>
+            </div>
+            <button class="btn" style="margin-top:12px;" type="submit">Запази ставка</button>
+          </form>
+          {% endif %}
+
+          {% if can_manage %}
+          <form method="POST" class="card payroll-smooth-form" data-payroll-ajax="true" action="/api/payroll/action">
+            <input type="hidden" name="action" value="update_item">
+            <input type="hidden" name="employee_id" value="{{ r.employee_id }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <h3 style="margin-top:0;">Корекции</h3>
+            <div class="form-grid">
+              <div><label>Бонус</label><input type="number" step="0.01" name="bonus" value="{{ r.bonus }}"></div>
+              <div><label>Корекция</label><input type="number" step="0.01" name="correction" value="{{ r.correction }}"></div>
+              <div><label>Болнични дни</label><input type="number" min="0" name="sick_days" value="{{ r.sick_days }}"></div>
+              <div class="full"><label>Бележки</label><input type="text" name="notes" value="{{ r.notes }}"></div>
+            </div>
+            <button class="btn" style="margin-top:12px;" type="submit">Запази payroll данни</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="card table-wrap">
+          <h3 style="margin-top:0;">История на заплатата</h3>
+          <table>
+            <thead><tr><th>Период</th><th>Брутно</th><th>Нетно</th><th>Статус</th><th>Изпратено</th></tr></thead>
+            <tbody>
+              {% for h in r.history %}
+              <tr><td>{{ "%02d"|format(h.month) }}.{{ h.year }}</td><td>{{ h.gross_total|money }}</td><td>{{ h.net_total|money }}</td><td>{{ h.status }}</td><td>{{ h.sent_at or '-' }}</td></tr>
+              {% else %}
+              <tr><td colspan="5">Няма история.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="row" style="margin-top:16px;">
+          <button class="btn secondary" type="button" onclick="hidePayrollDetails('payroll-detail-{{ r.employee_id }}')">Затвори</button>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+
+
+
+function setPayrollSkeleton(modal, on){
+  if(!modal) return;
+  modal.querySelectorAll(".dossier-metrics .card, .dossier-money .card").forEach(card=>{
+    card.classList.toggle("skeleton-card", !!on);
+  });
+}
+
+function moneyFmt(value){
+  const n = Number(value || 0);
+  return "€" + n.toFixed(2);
+}
+function numFmt(value){
+  const n = Number(value || 0);
+  return n.toFixed(2);
+}
+function applyPayrollToModal(employeeId, row){
+  if(!row) return;
+  const modal=document.querySelector(`[data-payroll-modal="${employeeId}"]`);
+  if(!modal) return;
+
+  const set = (field, value, type="money") => {
+    modal.querySelectorAll(`[data-payroll-field="${field}"]`).forEach(el=>{
+      if(type === "plain") el.textContent = value;
+      else if(type === "rate") el.textContent = Number(value || 0).toFixed(4) + " €/ч";
+      else if(type === "int") el.textContent = String(value || 0);
+      else if(type === "num") el.textContent = numFmt(value);
+      else el.textContent = moneyFmt(value);
+      el.classList.add("payroll-live-flash");
+      setTimeout(()=>el.classList.remove("payroll-live-flash"), 450);
+    });
+  };
+
+  set("pay_type_label", row.pay_type === "hourly" ? "Почасова" : "Месечна", "plain");
+  set("monthly_gross", row.monthly_gross);
+  set("base_rate", row.base_rate, "rate");
+  set("norm_hours", row.norm_hours, "num");
+  set("worked_hours", row.worked_hours, "num");
+  set("holiday_hours", row.holiday_hours, "num");
+  set("weekend_hours", row.weekend_hours, "num");
+  set("overtime_hours", row.overtime_hours, "num");
+  set("sick_days", row.sick_days, "int");
+  set("gross_base", row.gross_base);
+  set("additions", row.additions);
+  set("bonus", row.bonus);
+  set("correction", row.correction);
+  set("gross_total", row.gross_total);
+  set("net_total", row.net_total);
+
+  const tableNet=document.querySelector(`[data-payroll-table-net="${employeeId}"]`);
+  if(tableNet) tableNet.textContent = moneyFmt(row.net_total);
+}
+
+async function parsePayrollResponse(res){
+  const contentType = res.headers.get("content-type") || "";
+  if(contentType.includes("application/json")){
+    return await res.json();
+  }
+  const text = await res.text();
+  return {ok:false,message:`Payroll API върна ${res.status} вместо JSON. ${text.slice(0,140).replace(/\s+/g," ")}`};
+}
+
+function collectPayrollModalData(modal, action){
+  const fd = new FormData();
+  fd.append("action", action);
+  modal.querySelectorAll("form[data-payroll-ajax='true'] input, form[data-payroll-ajax='true'] select, form[data-payroll-ajax='true'] textarea").forEach(el=>{
+    if(!el.name || el.type === "submit") return;
+    fd.set(el.name, el.value);
+  });
+  fd.set("action", action);
+  return fd;
+}
+
+async function payrollPost(fd){
+  const res=await fetch("/api/payroll/action", {
+    method:"POST",
+    headers:{"X-Requested-With":"fetch","Accept":"application/json"},
+    credentials:"same-origin",
+    body:fd
+  });
+  return await parsePayrollResponse(res);
+}
+
+let payrollPreviewTimers = {};
+function schedulePayrollPreview(modal){
+  const employeeId = modal.dataset.payrollModal;
+  clearTimeout(payrollPreviewTimers[employeeId]);
+  payrollPreviewTimers[employeeId] = setTimeout(async ()=>{
+    try{
+      setPayrollSkeleton(modal, true);
+      const fd = collectPayrollModalData(modal, "preview");
+      const data = await payrollPost(fd);
+      if(data.ok) applyPayrollToModal(employeeId, data.payroll);
+      setPayrollSkeleton(modal, false);
+    }catch(e){
+      setPayrollSkeleton(modal, false);
+    }
+  }, 300);
+}
+
+document.querySelectorAll("[data-payroll-modal]").forEach(modal=>{
+  modal.querySelectorAll("form[data-payroll-ajax='true'] input, form[data-payroll-ajax='true'] select, form[data-payroll-ajax='true'] textarea").forEach(el=>{
+    if(el.type === "hidden") return;
+    el.addEventListener("input", ()=>schedulePayrollPreview(modal));
+    el.addEventListener("change", ()=>schedulePayrollPreview(modal));
+  });
+});
+
+document.querySelectorAll("form[data-payroll-ajax='true']").forEach(form=>{
+  form.addEventListener("submit", async function(event){
+    event.preventDefault();
+
+    const btn=form.querySelector("button[type='submit']");
+    const old=btn ? btn.textContent : "";
+    if(btn){ btn.disabled=true; btn.textContent="Записвам..."; }
+
+    try{
+      const modal=form.closest("[data-payroll-modal]");
+      const actionInput = form.querySelector("input[name='action']");
+      const fd = modal ? collectPayrollModalData(modal, actionInput ? actionInput.value : "update_item") : new FormData(form);
+      const data=await payrollPost(fd);
+      showAjaxMiniToast(data.message || (data.ok ? "Готово" : "Грешка"), !!data.ok);
+
+      if(data.ok && data.payroll && modal){
+        applyPayrollToModal(modal.dataset.payrollModal, data.payroll);
+      }
+    }catch(e){
+      showAjaxMiniToast("Payroll fetch грешка: " + e.message, false);
+    }finally{
+      if(btn){ btn.disabled=false; btn.textContent=old; }
+    }
+  });
+});
+
+function openPayrollDetails(id){ const modal=document.getElementById(id); if(modal) modal.classList.add("show"); }
+function hidePayrollDetails(id){ const modal=document.getElementById(id); if(modal) modal.classList.remove("show"); }
+function closePayrollDetails(event){ if(event.target.classList.contains("payroll-detail-modal")) event.target.classList.remove("show"); }
+const autoOpenPayrollEmployee = new URLSearchParams(window.location.search).get("open_payroll");
+if(autoOpenPayrollEmployee){
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-payroll-row="${CSS.escape(autoOpenPayrollEmployee)}"]`);
+    if(row) row.scrollIntoView({block:"center", behavior:"smooth"});
+    openPayrollDetails("payroll-detail-" + autoOpenPayrollEmployee);
+  });
+}
+document.addEventListener("keydown", function(e){ if(e.key==="Escape") document.querySelectorAll(".payroll-detail-modal.show").forEach(m=>m.classList.remove("show")); });
+{% endblock %}

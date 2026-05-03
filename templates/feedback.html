@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% set page_title = "Сигнали" %}
+{% set title = "Сигнали" %}
+
+{% block content %}
+<div class="row space" style="margin-bottom:18px;">
+  <div>
+    <h2 style="margin:0;">🛠️ Сигнали и препоръки</h2>
+    <div class="muted">Пиши тук, ако нещо не работи, липсва или имаш идея за подобрение.</div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <h3 style="margin-top:0;">+ Нов сигнал</h3>
+  <form method="POST" id="feedbackForm">
+    <input type="hidden" name="page_url" id="pageUrl">
+    <input type="hidden" name="browser_info" id="browserInfo">
+
+    <div class="form-grid">
+      <div>
+        <label>Тип</label>
+        <select name="type" required>
+          <option value="bug">Бъг</option>
+          <option value="idea">Препоръка / идея</option>
+          <option value="question">Въпрос</option>
+          <option value="ui">UI/удобство</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Заглавие</label>
+        <input type="text" name="title" required placeholder="Например: Не се вижда бутонът Запази">
+      </div>
+
+      <div class="full">
+        <label>Описание</label>
+        <textarea name="description" rows="5" required placeholder="Опиши какво се случи, къде го видя и какво очакваше да стане..."></textarea>
+      </div>
+    </div>
+
+    <button class="btn" style="margin-top:14px;" type="submit">Изпрати report</button>
+  </form>
+</div>
+
+<div class="card table-wrap">
+  <h3 style="margin-top:0;">{% if is_admin_user or can('can_view_reports') %}Всички reports{% else %}Моите reports{% endif %}</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Потребител</th>
+        <th>Тип</th>
+        <th>Заглавие</th>
+        <th>Статус</th>
+        <th>Описание</th>
+        {% if is_admin_user or can('can_view_reports') %}<th>Обработка</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr id="feedback-report-{{ r.id }}" data-feedback-row="{{ r.id }}">
+        <td>{{ r.created_at }}</td>
+        <td>{{ r.username or '-' }}</td>
+        <td>{{ r.type }}</td>
+        <td><strong>{{ r.title }}</strong></td>
+        <td>
+          {% if r.status == 'open' %}<span class="badge">Отворен</span>
+          {% elif r.status == 'in_progress' %}<span class="badge">В работа</span>
+          {% elif r.status == 'fixed' %}<span class="badge">Оправен</span>
+          {% else %}<span class="badge">Отказан</span>{% endif %}
+        </td>
+        <td>
+          {{ r.description }}
+          {% if r.admin_comment %}
+            <div class="muted" style="margin-top:8px;">Коментар: {{ r.admin_comment }}</div>
+          {% endif %}
+          {% if r.page_url %}
+            <div class="muted" style="font-size:12px;margin-top:8px;">Страница: {{ r.page_url }}</div>
+          {% endif %}
+        </td>
+        {% if is_admin_user or can('can_view_reports') %}
+        <td>
+          <form method="POST" action="{{ url_for('feedback_update', report_id=r.id) }}">
+            <select name="status">
+              <option value="open" {% if r.status == 'open' %}selected{% endif %}>Отворен</option>
+              <option value="in_progress" {% if r.status == 'in_progress' %}selected{% endif %}>В работа</option>
+              <option value="fixed" {% if r.status == 'fixed' %}selected{% endif %}>Оправен</option>
+              <option value="rejected" {% if r.status == 'rejected' %}selected{% endif %}>Отказан</option>
+            </select>
+            <input type="text" name="admin_comment" value="{{ r.admin_comment or '' }}" placeholder="Коментар">
+            <button class="btn small" style="margin-top:8px;" type="submit">Запази</button>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Няма reports.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+const pageUrl = document.getElementById("pageUrl");
+const browserInfo = document.getElementById("browserInfo");
+if (pageUrl) pageUrl.value = window.location.href;
+if (browserInfo) browserInfo.value = navigator.userAgent;
+const autoOpenFeedbackId = new URLSearchParams(window.location.search).get("open_feedback");
+if(autoOpenFeedbackId){
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-feedback-row="${CSS.escape(autoOpenFeedbackId)}"]`);
+    if(row){
+      row.scrollIntoView({block:"center", behavior:"smooth"});
+      row.classList.add("live-flash");
+      setTimeout(()=>row.classList.remove("live-flash"), 1400);
+    }
+  });
+}
+{% endblock %}

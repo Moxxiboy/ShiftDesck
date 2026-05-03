@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% set page_title='Служител' %}
+{% block content %}
+<div class="card">
+  <h2>{{ 'Редакция' if employee else 'Нов служител' }}</h2>
+  <form method="post" class="form-grid">
+    <div><label>Име</label><input name="first_name" value="{{ employee.first_name if employee else '' }}" required></div>
+    <div><label>Фамилия</label><input name="last_name" value="{{ employee.last_name if employee else '' }}" required></div>
+    <div><label>Email</label><input name="email" value="{{ employee.email if employee else '' }}"></div>
+    <div><label>Телефон</label><input name="phone" value="{{ employee.phone if employee else '' }}"></div>
+    <div>
+      <label>Отдел</label>
+      <select name="department_id">
+        <option value="">---</option>
+        {% for d in departments %}
+          <option value="{{ d.id }}" {% if employee and employee.department_id==d.id %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if can_edit_pay_rate %}
+    <div>
+      <label>Тип заплата</label>
+      {% set pay_type = employee.pay_type if employee else 'monthly' %}
+      <select name="pay_type">
+        <option value="monthly" {% if pay_type == 'monthly' %}selected{% endif %}>Месечна брутна</option>
+        <option value="hourly" {% if pay_type == 'hourly' %}selected{% endif %}>Почасова</option>
+      </select>
+    </div>
+    <div>
+      <label>Месечна брутна €</label>
+      <input name="monthly_gross" type="number" step="0.01" value="{{ employee.monthly_gross if employee else '1000.00' }}">
+    </div>
+    <div>
+      <label>Ставка €/час</label>
+      <input name="hourly_rate" type="number" step="0.01" value="{{ employee.hourly_rate if employee else '8.00' }}">
+    </div>
+    {% else %}
+      <input type="hidden" name="pay_type" value="{{ employee.pay_type if employee else 'monthly' }}">
+      <input type="hidden" name="monthly_gross" value="{{ employee.monthly_gross if employee else '1000.00' }}">
+      <input type="hidden" name="hourly_rate" value="{{ employee.hourly_rate if employee else '8.00' }}">
+    {% endif %}
+
+    <div class="full"><button class="btn">Запази</button></div>
+  </form>
+</div>
+{% endblock %}
